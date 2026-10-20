@@ -4,6 +4,7 @@
 /installer/output/
 build_release.log
 *.dmg
+*.pkg
 *.clap
 *.vst3
 *.component

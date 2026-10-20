@@ -6,7 +6,7 @@ vocals, synths — and it excites a resonant physical object, then rings it back
 with a tuned, material-like timbre.
 
 Built with JUCE and delivered as **VST3** + **CLAP** (plus **AU** on macOS),
-packaged by an Inno Setup installer on Windows and a drag-and-drop `.dmg` on
+packaged by an Inno Setup installer on Windows and a `.pkg` installer on
 macOS.
 
 ## What's inside
@@ -110,22 +110,15 @@ dist/Sympathy.component     <- Audio Unit
 dist/Sympathy.clap          <- CLAP bundle
 ```
 
-### Creating the drag-and-drop installer
+### Creating the installer package (.pkg)
 
 ```
-$ ./make_dmg.sh
+$ ./make_pkg.sh
 ```
 
-This produces `installer/output/Sympathy-1.0.0-mac.dmg`, containing the three
-bundles plus an **Audio Plug-Ins** shortcut. Drag each bundle into the matching
-folder:
-
-- `Sympathy.vst3` → `VST3/`
-- `Sympathy.component` → `Components/`
-- `Sympathy.clap` → `CLAP/`
-
-For a per-user install (no admin prompt), drop them into the same subfolders
-under `~/Library/Audio/Plug-Ins` instead, then rescan in your DAW.
+This produces `installer/output/Sympathy-1.0.0-mac.pkg`, which installs the
+three bundles to `/Library/Audio/Plug-Ins/{VST3, Components, CLAP}` via the
+macOS Installer (with an admin prompt).
 
 > **Code signing:** for building/testing on your own Mac the bundles load as-is.
 > To run the AU in Logic you may need an ad-hoc signature first:
@@ -138,7 +131,7 @@ under `~/Library/Audio/Plug-Ins` instead, then rescan in your DAW.
 The workflow `.github/workflows/build-macos.yml` builds the macOS **universal2**
 VST3 + AU + CLAP bundles on every push to `main`, every `v*` tag, and on demand.
 Each run uploads a `Sympathy-macOS` artifact containing the three bundles and a
-ready-to-use `Sympathy-1.0.0-mac.dmg`.
+ready-to-use `Sympathy-1.0.0-mac.pkg`.
 
 ## Manual install (Windows)
 

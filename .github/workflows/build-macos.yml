@@ -34,13 +34,15 @@ jobs:
           cp -R build/Sympathy_artefacts/Release/AU/Sympathy.component   dist/
           cp -R build/Sympathy_artefacts/Release/CLAP/Sympathy.clap      dist/
 
-      - name: Create disk image
+      - name: Create installer package (.pkg)
         run: |
-          mkdir -p dmg
-          cp -R dist/. dmg/
-          ln -s /Library/Audio/Plug-Ins "dmg/Audio Plug-Ins"
-          printf 'Sympathy - Physical Modeling Resonator\n\nDrag each bundle into the matching folder inside "Audio Plug-Ins":\n\n    Sympathy.vst3        ->  VST3/\n    Sympathy.component   ->  Components/\n    Sympathy.clap        ->  CLAP/\n' > dmg/README.txt
-          hdiutil create -volname "Sympathy" -srcfolder dmg -ov -format UDZO Sympathy-1.0.0-mac.dmg
+          mkdir -p payload/Library/Audio/Plug-Ins/VST3
+          mkdir -p payload/Library/Audio/Plug-Ins/Components
+          mkdir -p payload/Library/Audio/Plug-Ins/CLAP
+          cp -R dist/Sympathy.vst3      payload/Library/Audio/Plug-Ins/VST3/
+          cp -R dist/Sympathy.component payload/Library/Audio/Plug-Ins/Components/
+          cp -R dist/Sympathy.clap      payload/Library/Audio/Plug-Ins/CLAP/
+          pkgbuild --root payload --identifier com.dewpoint.Sympathy --version 1.0.0 --install-location / Sympathy-1.0.0-mac.pkg
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -48,4 +50,4 @@ jobs:
           name: Sympathy-macOS
           path: |
             dist/**
-            Sympathy-1.0.0-mac.dmg
+            Sympathy-1.0.0-mac.pkg
