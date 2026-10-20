@@ -68,7 +68,7 @@ namespace sympathy
             decay_i = clampF (decay_i, 0.01f, 120.0f);
 
             const float r = std::min (std::exp (-1.0f / (decay_i * static_cast<float> (sampleRate))),
-                                      0.9995f);
+                                      0.9999999f);
             const float theta = 2.0f * kPi * freq / static_cast<float> (sampleRate);
             const float cosT  = std::cos (theta);
 

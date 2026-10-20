@@ -175,13 +175,25 @@ namespace
 }
 
 // ===========================================================================
-class SympathyAudioProcessorEditor::Impl
+class SympathyAudioProcessorEditor::Impl : private juce::AudioProcessorValueTreeState::Listener
 {
 public:
     explicit Impl (SympathyAudioProcessor& proc)
         : processor (proc)
     {
         build();
+    }
+
+    ~Impl() override
+    {
+        processor.getParameters().removeParameterListener ("material", this);
+    }
+
+    void parameterChanged (const juce::String& paramID, float) override
+    {
+        if (paramID == "material")
+            for (auto& b : materialButtons)
+                b->repaint();
     }
 
     SympathyAudioProcessor& processor;
@@ -224,6 +236,10 @@ public:
         for (int i = 0; i < 7; ++i)
             materialButtons.push_back (std::make_unique<MaterialIconButton> (
                 static_cast<MaterialId> (i), processor.getParameters()));
+
+        // Repaint the selector whenever the material changes (clicks, host
+        // automation or presets), so the highlighted button always follows.
+        processor.getParameters().addParameterListener ("material", this);
 
         // --- visualizer -----------------------------------------------------
         visualizer = std::make_unique<ResonanceVisualizer> (processor);

@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="1.0.1"
+VERSION="1.0.2"
 PAYLOAD="build/pkg-payload"
 OUT="installer/output/Sympathy-${VERSION}-mac.pkg"
 
