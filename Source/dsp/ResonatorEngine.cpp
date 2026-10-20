@@ -171,6 +171,7 @@ namespace sympathy
         for (auto& s : strings)
             s.prepare (sr, maxBlockSize);
         refract.prepare (sr, maxBlockSize);
+        limiter.prepare (sr);
         updateAll (sr);
         meter = 0.0f;
         level.store (0.0f);
@@ -183,6 +184,7 @@ namespace sympathy
         for (auto& s : strings)
             s.reset();
         refract.reset();
+        limiter.reset();
         meter = 0.0f;
         level.store (0.0f);
     }
@@ -235,8 +237,11 @@ namespace sympathy
             const float absR = std::fabs (wetR);
             maxWet = std::max (maxWet, std::max (absL, absR));
 
-            outL[i] = (((1.0f - p.mix) * l + p.mix * wetL) + refL) * p.output;
-            outR[i] = (((1.0f - p.mix) * r + p.mix * wetR) + refR) * p.output;
+            float lo = (((1.0f - p.mix) * l + p.mix * wetL) + refL) * p.output;
+            float ro = (((1.0f - p.mix) * r + p.mix * wetR) + refR) * p.output;
+            limiter.process (lo, ro);
+            outL[i] = lo;
+            outR[i] = ro;
         }
 
         // Smooth peak meter (audio thread only; the GUI reads the atomic).

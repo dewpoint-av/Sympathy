@@ -205,9 +205,9 @@ void ResonanceVisualizer::paint (juce::Graphics& g)
                                       : b.getY() + b.getHeight() * 0.80f;
             juce::Path wave;
             wave.startNewSubPath (b.getX(), sy);
-            for (int i = 1; i <= 48; ++i)
+            for (int i = 1; i <= 32; ++i)
             {
-                const float t = static_cast<float> (i) / 48.0f;
+                const float t = static_cast<float> (i) / 32.0f;
                 wave.lineTo (b.getX() + t * b.getWidth(),
                              sy + std::sin (t * 2.0f * kPi * 3.0f + time * 6.0f + s * 1.5f) * amp);
             }
@@ -238,7 +238,7 @@ void ResonanceVisualizer::paint (juce::Graphics& g)
 
     // --- particles (on top) --------------------------------------------------
     // Constellations: join nearby particles with faint blue links.
-    const float linkDist  = 65.0f;
+    const float linkDist  = 55.0f;
     const float linkDist2 = linkDist * linkDist;
     for (size_t i = 0; i < particles.size(); ++i)
     {
