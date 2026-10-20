@@ -77,6 +77,24 @@ namespace sympathy
         float input          = 1.0f;     // 0..2 (excitation drive)
         float mix            = 0.5f;     // 0..1 dry/wet
         float output         = 1.0f;     // 0..2
+
+        bool operator== (const Params& o) const
+        {
+            return material      == o.material
+                && tune          == o.tune
+                && inharmonicity == o.inharmonicity
+                && decay         == o.decay
+                && brightness    == o.brightness
+                && body          == o.body
+                && strings       == o.strings
+                && stringTune    == o.stringTune
+                && stringDamp    == o.stringDamp
+                && stringDecay   == o.stringDecay
+                && exciter       == o.exciter
+                && input         == o.input
+                && mix           == o.mix
+                && output        == o.output;
+        }
     };
 
     // -----------------------------------------------------------------------

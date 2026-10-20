@@ -86,7 +86,7 @@ With [Inno Setup 6](https://jrsoftware.org/isinfo.php) installed:
 > installer\build_installer.bat
 ```
 
-The installer `installer\output\Sympathy-Setup-1.0.0.exe` installs:
+The installer `installer\output\Sympathy-Setup-1.0.1.exe` installs:
 
 - `Sympathy.vst3` → `C:\Program Files\Common Files\VST3\`
 - `Sympathy.clap`  → `C:\Program Files\Common Files\CLAP\` and the per-user CLAP folder
@@ -116,7 +116,7 @@ dist/Sympathy.clap          <- CLAP bundle
 $ ./make_pkg.sh
 ```
 
-This produces `installer/output/Sympathy-1.0.0-mac.pkg`, which installs the
+This produces `installer/output/Sympathy-1.0.1-mac.pkg`, which installs the
 three bundles to `/Library/Audio/Plug-Ins/{VST3, Components, CLAP}` via the
 macOS Installer (with an admin prompt).
 
@@ -131,7 +131,7 @@ macOS Installer (with an admin prompt).
 The workflow `.github/workflows/build-macos.yml` builds the macOS **universal2**
 VST3 + AU + CLAP bundles on every push to `main`, every `v*` tag, and on demand.
 Each run uploads a `Sympathy-macOS` artifact containing the three bundles and a
-ready-to-use `Sympathy-1.0.0-mac.pkg`.
+ready-to-use `Sympathy-1.0.1-mac.pkg`.
 
 ## Manual install (Windows)
 

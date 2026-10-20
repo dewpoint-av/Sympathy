@@ -187,6 +187,8 @@ namespace sympathy
 
     void ResonatorEngine::setParams (const Params& newParams)
     {
+        if (newParams == p)
+            return;   // nothing changed -> skip re-computing mode/string coefficients
         p = newParams;
         updateAll (sampleRate);
     }
