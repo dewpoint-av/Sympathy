@@ -35,6 +35,7 @@ namespace sympathy
     static constexpr int kMaxModes      = 64;
     static constexpr int kNumStrings    = 2;
     static constexpr int kNumChannels   = 2;
+    static constexpr int kVizSize       = 4096;
 
     // -----------------------------------------------------------------------
     // Material presets for the modal body.
@@ -293,6 +294,10 @@ namespace sympathy
         float getModeFrequency (int i) const { return body[0].getModeFrequency (i); }
         float getLevel() const { return level.load(); }
 
+        // Recent mono input for the header spheres (spectrogram / spectrum).
+        const std::vector<float>& vizInput() const { return vizInputBuf; }
+        int  vizWritePos() const                    { return vizWrite.load(); }
+
     private:
         void updateAll (double sampleRate);
 
@@ -307,6 +312,9 @@ namespace sympathy
 
         std::atomic<float> level { 0.0f };
         float meter = 0.0f;   // audio-thread-only smoothing state
+
+        std::vector<float> vizInputBuf;
+        std::atomic<int> vizWrite { 0 };
     };
 
 } // namespace sympathy

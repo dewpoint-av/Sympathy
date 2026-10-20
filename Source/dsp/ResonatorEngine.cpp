@@ -172,6 +172,8 @@ namespace sympathy
             s.prepare (sr, maxBlockSize);
         refract.prepare (sr, maxBlockSize);
         limiter.prepare (sr);
+        vizInputBuf.assign (kVizSize, 0.0f);
+        vizWrite.store (0);
         updateAll (sr);
         meter = 0.0f;
         level.store (0.0f);
@@ -185,6 +187,7 @@ namespace sympathy
             s.reset();
         refract.reset();
         limiter.reset();
+        vizWrite.store (0);
         meter = 0.0f;
         level.store (0.0f);
     }
@@ -219,6 +222,10 @@ namespace sympathy
         {
             const float l = inL[i];
             const float r = inR[i];
+
+            int w = vizWrite.load();
+            vizInputBuf[static_cast<size_t> (w)] = 0.5f * (l + r);
+            vizWrite.store ((w + 1) % kVizSize);
 
             // Excitation: the driven input plus an optional self-noise "bow".
             const float excL = l * p.input + noise[0].next() * p.exciter;

@@ -2,6 +2,7 @@
 
 #include "ResonanceVisualizer.h"
 #include "HoloLogo.h"
+#include "AudioSpheres.h"
 
 #include <cmath>
 #include <functional>
@@ -418,6 +419,8 @@ public:
     juce::Label footer;
 
     std::unique_ptr<ResonanceVisualizer> visualizer;
+    std::unique_ptr<SpectrogramSphere> leftSphere;
+    std::unique_ptr<SpectrumSphere> rightSphere;
 
     std::vector<std::unique_ptr<MaterialIconButton>> materialButtons;
 
@@ -467,6 +470,13 @@ public:
         // --- visualizer -----------------------------------------------------
         visualizer = std::make_unique<ResonanceVisualizer> (processor);
 
+        leftSphere = std::make_unique<SpectrogramSphere> (
+            &processor.getEngine().vizInput(),
+            [this] { return processor.getEngine().vizWritePos(); });
+        rightSphere = std::make_unique<SpectrumSphere> (
+            &processor.getEngine().vizInput(),
+            [this] { return processor.getEngine().vizWritePos(); });
+
         // --- panels ---------------------------------------------------------
         bodyPanel = std::make_unique<Panel> ("RESONANT BODY");
         bodyKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "tune", "TUNE", hzText));
@@ -515,6 +525,8 @@ public:
         root.addAndMakeVisible (subtitle);
         root.addAndMakeVisible (brand);
         root.addAndMakeVisible (footer);
+        root.addAndMakeVisible (*leftSphere);
+        root.addAndMakeVisible (*rightSphere);
 
         for (auto& b : materialButtons)
             root.addAndMakeVisible (*b);
@@ -552,6 +564,13 @@ public:
 
         // Header
         auto header = b.removeFromTop (92);
+        const int sphere = 76;
+        const int pad = 28;
+        const int sphereY = header.getY() + (header.getHeight() - sphere) / 2;
+        leftSphere->setBounds  (header.getX() + pad, sphereY, sphere, sphere);
+        rightSphere->setBounds (header.getRight() - pad - sphere, sphereY, sphere, sphere);
+
+        header = header.withTrimmedLeft (sphere + pad).withTrimmedRight (sphere + pad);
         brand.setBounds (header.removeFromTop (20));
         title->setBounds (header.removeFromTop (54));
         subtitle.setBounds (header);
