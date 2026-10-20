@@ -38,7 +38,7 @@ public:
     static inline const juce::Colour panel      { 0xff10141c };
     static inline const juce::Colour border     { 0xff1c2331 };
     static inline const juce::Colour track      { 0xff232b3a };
-    static inline const juce::Colour accent     { 0xff00d4ff };   // holographic cyan
+    static inline const juce::Colour accent     { 0xff6ea8fe };   // holographic blue
     static inline const juce::Colour accent2    { 0xff7a5cff };   // iridescent violet
     static inline const juce::Colour text       { 0xffe6eaf2 };
     static inline const juce::Colour muted      { 0xff7d8496 };

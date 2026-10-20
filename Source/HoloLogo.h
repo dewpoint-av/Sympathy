@@ -54,9 +54,18 @@ public:
         juce::Path p;
         glyphs.createPath (p);
 
-        const float ph = phase;
-        const juce::Colour a = juce::Colour::fromHSV (std::fmod (ph, 1.0f), 0.72f, 1.0f, 1.0f);
-        const juce::Colour c = juce::Colour::fromHSV (std::fmod (ph + 0.45f, 1.0f), 0.70f, 1.0f, 1.0f);
+        // Website palette: blue -> purple -> red (no green / cyan).
+        const auto palette = [] (float p)
+        {
+            const juce::Colour blue   (0xff6ea8fe);
+            const juce::Colour purple (0xff8b5cf6);
+            const juce::Colour red    (0xffff2a2a);
+            p = std::fmod (p, 1.0f);
+            return (p < 0.5f) ? blue.interpolatedWith  (purple, p * 2.0f)
+                              : purple.interpolatedWith (red, (p - 0.5f) * 2.0f);
+        };
+        const juce::Colour a = palette (phase);
+        const juce::Colour c = palette (phase + 0.33f);
 
         // Soft pulsing glow.
         const float glowAlpha = 0.22f + 0.14f * (0.5f + 0.5f * std::sin (phase * 6.2831853f));

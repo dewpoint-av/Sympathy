@@ -30,8 +30,8 @@ namespace
         {
             slider.setSliderStyle (juce::Slider::Rotary);
             slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-            slider.setRotaryParameters ({ juce::MathConstants<float>::pi * 0.75f,
-                                          juce::MathConstants<float>::pi * 2.25f,
+            slider.setRotaryParameters ({ juce::MathConstants<float>::pi * 1.25f,
+                                          juce::MathConstants<float>::pi * 2.75f,
                                           true });
 
             addAndMakeVisible (slider);
@@ -488,7 +488,7 @@ public:
         globalKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "output", "OUTPUT", gainText));
 
         // --- refract (super unison multi-FX) --------------------------------
-        refractPanel = std::make_unique<Panel> ("REFRACTION  ·  SUPER UNISON");
+        refractPanel = std::make_unique<Panel> ("REFRACTION - SUPER UNISON");
         refractPower = std::make_unique<RefractPowerButton> (processor.getParameters());
         refractVisual = std::make_unique<RefractVisualizer> (processor.getParameters());
 
