@@ -53,7 +53,9 @@ void ResonanceVisualizer::update()
     const float activity = juce::jmax (level * 2.0f, exciter * 0.55f, 0.04f);
 
     // --- particles ---------------------------------------------------------
-    const int target = juce::roundToInt (kMaxParticles * activity);
+    // Clamp the target so a hot level/Exciter can never inflate the particle
+    // count past the cap (the constellation link pass is O(n^2)).
+    const int target = juce::jmin (kMaxParticles, juce::roundToInt (kMaxParticles * activity));
     while (static_cast<int> (particles.size()) < target)
         spawnParticle();
 

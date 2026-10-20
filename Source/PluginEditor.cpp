@@ -30,6 +30,9 @@ namespace
         {
             slider.setSliderStyle (juce::Slider::Rotary);
             slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+            slider.setRotaryParameters ({ juce::MathConstants<float>::pi * 0.75f,
+                                          juce::MathConstants<float>::pi * 2.25f,
+                                          true });
 
             addAndMakeVisible (slider);
 
@@ -440,14 +443,14 @@ public:
         subtitle.setText ("PHYSICAL MODELING RESONATOR", juce::dontSendNotification);
         subtitle.setFont (juce::Font (12.0f, juce::Font::bold));
         subtitle.setColour (juce::Label::textColourId, SympathyLookAndFeel::muted);
-        subtitle.setJustificationType (juce::Justification::centredLeft);
+        subtitle.setJustificationType (juce::Justification::centred);
 
         brand.setText ("DEWPOINT AV", juce::dontSendNotification);
         brand.setFont (monumentFont (13.0f, false));
         brand.setColour (juce::Label::textColourId, SympathyLookAndFeel::accent);
-        brand.setJustificationType (juce::Justification::centredRight);
+        brand.setJustificationType (juce::Justification::centred);
 
-        footer.setText (juce::String ("DEWPOINT AV  ·  v") + juce::String (JucePlugin_VersionString), juce::dontSendNotification);
+        footer.setText (juce::String ("DEWPOINT AV  -  v") + juce::String (JucePlugin_VersionString), juce::dontSendNotification);
         footer.setFont (monumentFont (11.0f, false));
         footer.setColour (juce::Label::textColourId, SympathyLookAndFeel::muted);
         footer.setJustificationType (juce::Justification::centred);
@@ -485,7 +488,7 @@ public:
         globalKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "output", "OUTPUT", gainText));
 
         // --- refract (super unison multi-FX) --------------------------------
-        refractPanel = std::make_unique<Panel> ("REFRACT  ·  SUPER UNISON");
+        refractPanel = std::make_unique<Panel> ("REFRACTION  ·  SUPER UNISON");
         refractPower = std::make_unique<RefractPowerButton> (processor.getParameters());
         refractVisual = std::make_unique<RefractVisualizer> (processor.getParameters());
 
@@ -548,9 +551,9 @@ public:
         b.removeFromBottom (2);
 
         // Header
-        auto header = b.removeFromTop (58);
-        title->setBounds (header.removeFromLeft (340));
-        brand.setBounds (header.removeFromRight (220));
+        auto header = b.removeFromTop (92);
+        brand.setBounds (header.removeFromTop (20));
+        title->setBounds (header.removeFromTop (54));
         subtitle.setBounds (header);
 
         b.removeFromTop (6);
@@ -630,7 +633,7 @@ SympathyAudioProcessorEditor::SympathyAudioProcessorEditor (SympathyAudioProcess
     impl->attachTo (*this);
 
     setResizable (true, true);
-    setResizeLimits (680, 640, 1500, 1000);
+    setResizeLimits (680, 680, 1500, 1000);
     setSize (960, 840);
 }
 

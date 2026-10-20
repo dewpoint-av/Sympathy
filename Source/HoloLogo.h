@@ -49,7 +49,7 @@ public:
         juce::GlyphArrangement glyphs;
         glyphs.addFittedText (monumentFont (fontHeight, bold), text,
                               b.getX(), b.getY(), b.getWidth(), b.getHeight(),
-                              juce::Justification::centredLeft, 1, 0.9f);
+                              juce::Justification::centred, 1, 0.9f);
 
         juce::Path p;
         glyphs.createPath (p);
