@@ -235,10 +235,43 @@ void ResonanceVisualizer::paint (juce::Graphics& g)
     drawMaterialIcon (g, id, iconRect.reduced (iconR * 0.30f), accent.withAlpha (0.95f), 2.0f);
 
     // --- particles (on top) --------------------------------------------------
+    // Constellations: join nearby particles with faint blue links.
+    const float linkDist  = 55.0f;
+    const float linkDist2 = linkDist * linkDist;
+    for (size_t i = 0; i < particles.size(); ++i)
+    {
+        for (size_t j = i + 1; j < particles.size(); ++j)
+        {
+            const float dx = particles[i].x - particles[j].x;
+            const float dy = particles[i].y - particles[j].y;
+            const float d2 = dx * dx + dy * dy;
+            if (d2 < linkDist2)
+            {
+                const float a = (1.0f - std::sqrt (d2) / linkDist) * 0.30f;
+                g.setColour (juce::Colour (0xff6ea8fe).withAlpha (a));
+                g.drawLine (particles[i].x, particles[i].y, particles[j].x, particles[j].y, 0.8f);
+            }
+        }
+    }
+
+    // Particle dots + motion trails (website palette: crimson -> blue -> violet).
+    const juce::Colour crimson (0xffff2a2a);
+    const juce::Colour blue    (0xff6ea8fe);
+    const juce::Colour violet  (0xff7a5cff);
     for (const auto& pt : particles)
     {
         const float a = juce::jlimit (0.0f, 1.0f, pt.life / pt.maxLife);
-        const juce::Colour c = juce::Colour::fromHSV (pt.hue, 0.8f, 0.95f, a);
+        const juce::Colour c = pt.hue < 0.5f
+            ? crimson.interpolatedWith (blue,   pt.hue * 2.0f).withAlpha (a)
+            : blue.interpolatedWith    (violet, (pt.hue - 0.5f) * 2.0f).withAlpha (a);
+
+        g.setColour (c.withAlpha (a * 0.45f));
+        const float spd = std::sqrt (pt.vx * pt.vx + pt.vy * pt.vy);
+        if (spd > 0.01f)
+            g.drawLine (pt.x, pt.y,
+                        pt.x - pt.vx / spd * pt.size * 2.5f,
+                        pt.y - pt.vy / spd * pt.size * 2.5f, 1.0f);
+
         g.setColour (c);
         g.fillEllipse (pt.x - pt.size * 0.5f, pt.y - pt.size * 0.5f, pt.size, pt.size);
     }

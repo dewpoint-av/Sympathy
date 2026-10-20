@@ -1,6 +1,7 @@
 #include "PluginEditor.h"
 
 #include "ResonanceVisualizer.h"
+#include "HoloLogo.h"
 
 #include <cmath>
 #include <functional>
@@ -73,8 +74,8 @@ namespace
         explicit Panel (const juce::String& title)
         {
             titleLabel.setText (title, juce::dontSendNotification);
-            titleLabel.setFont (juce::Font (13.0f, juce::Font::bold));
-            titleLabel.setColour (juce::Label::textColourId, SympathyLookAndFeel::muted);
+            titleLabel.setFont (juce::Font (14.0f, juce::Font::bold));
+            titleLabel.setColour (juce::Label::textColourId, SympathyLookAndFeel::accent);
             titleLabel.setJustificationType (juce::Justification::centred);
             addAndMakeVisible (titleLabel);
         }
@@ -159,7 +160,7 @@ namespace
         const int rows = static_cast<int> (std::ceil (knobs.size() / static_cast<double> (cols)));
         const int cw = (area.getWidth()  - gapX * (cols - 1)) / cols;
         const int ch = (area.getHeight() - gapY * (rows - 1)) / rows;
-        const int knobH = juce::jmin (ch, 96);
+        const int knobH = juce::jmin (ch, 116);
 
         int idx = 0;
         for (int r = 0; r < rows; ++r)
@@ -198,9 +199,10 @@ public:
 
     SympathyAudioProcessor& processor;
 
-    juce::Label title;
+    std::unique_ptr<HoloTitle> title;
     juce::Label subtitle;
     juce::Label brand;
+    juce::Label footer;
 
     std::unique_ptr<ResonanceVisualizer> visualizer;
 
@@ -217,10 +219,7 @@ public:
     void build()
     {
         // --- header --------------------------------------------------------
-        title.setText ("SYMPATHY", juce::dontSendNotification);
-        title.setFont (juce::Font (30.0f, juce::Font::bold));
-        title.setColour (juce::Label::textColourId, SympathyLookAndFeel::accent);
-        title.setJustificationType (juce::Justification::centredLeft);
+        title = std::make_unique<HoloTitle> ("SYMPATHY", 32.0f, true);
 
         subtitle.setText ("PHYSICAL MODELING RESONATOR", juce::dontSendNotification);
         subtitle.setFont (juce::Font (12.0f, juce::Font::bold));
@@ -228,9 +227,14 @@ public:
         subtitle.setJustificationType (juce::Justification::centredLeft);
 
         brand.setText ("DEWPOINT AV", juce::dontSendNotification);
-        brand.setFont (juce::Font (12.0f, juce::Font::bold));
-        brand.setColour (juce::Label::textColourId, SympathyLookAndFeel::muted);
+        brand.setFont (monumentFont (13.0f, false));
+        brand.setColour (juce::Label::textColourId, SympathyLookAndFeel::accent);
         brand.setJustificationType (juce::Justification::centredRight);
+
+        footer.setText ("DEWPOINT AV", juce::dontSendNotification);
+        footer.setFont (monumentFont (11.0f, false));
+        footer.setColour (juce::Label::textColourId, SympathyLookAndFeel::muted);
+        footer.setJustificationType (juce::Justification::centred);
 
         // --- material icon selector ----------------------------------------
         for (int i = 0; i < 7; ++i)
@@ -267,9 +271,10 @@ public:
 
     void attachTo (juce::Component& root)
     {
-        root.addAndMakeVisible (title);
+        root.addAndMakeVisible (*title);
         root.addAndMakeVisible (subtitle);
         root.addAndMakeVisible (brand);
+        root.addAndMakeVisible (footer);
 
         for (auto& b : materialButtons)
             root.addAndMakeVisible (*b);
@@ -293,10 +298,14 @@ public:
     {
         auto b = area;
 
+        // Footer strip.
+        footer.setBounds (b.removeFromBottom (18));
+        b.removeFromBottom (2);
+
         // Header
-        auto header = b.removeFromTop (42);
-        title.setBounds (header.removeFromLeft (300));
-        brand.setBounds (header.removeFromRight (240));
+        auto header = b.removeFromTop (46);
+        title->setBounds (header.removeFromLeft (340));
+        brand.setBounds (header.removeFromRight (220));
         subtitle.setBounds (header);
 
         b.removeFromTop (6);
@@ -310,12 +319,12 @@ public:
         b.removeFromTop (8);
 
         // Visualizer fills the middle; panels sit at the bottom.
-        const int panelH = 150;
+        const int panelH = 168;
         const int gap = 12;
         visualizer->setBounds (b.removeFromTop (juce::jmax (60, b.getHeight() - panelH - gap)));
         b.removeFromTop (gap);
 
-        const int bodyW = juce::jmax (280, static_cast<int> (b.getWidth() * 0.44f));
+        const int bodyW = juce::jmax (280, static_cast<int> (b.getWidth() * 0.40f));
         const int sideW = (b.getWidth() - bodyW - 2 * gap) / 2;
 
         bodyPanel->setBounds (b.removeFromLeft (bodyW));
@@ -352,7 +361,7 @@ SympathyAudioProcessorEditor::SympathyAudioProcessorEditor (SympathyAudioProcess
 
     setResizable (true, true);
     setResizeLimits (680, 480, 1500, 1000);
-    setSize (920, 640);
+    setSize (940, 680);
 }
 
 SympathyAudioProcessorEditor::~SympathyAudioProcessorEditor()

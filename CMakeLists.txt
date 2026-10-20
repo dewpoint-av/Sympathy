@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(Sympathy VERSION 1.0.2)
+project(Sympathy VERSION 1.0.3)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -48,6 +48,12 @@ clap_juce_extensions_plugin(TARGET Sympathy
 # Generate JuceHeader.h and per-target config
 juce_generate_juce_header(Sympathy)
 
+# Embedded Monument Extended logotype fonts.
+juce_add_binary_data(SympathyBinaryData
+    SOURCES
+        Source/MonumentExtendedUltrabold.otf
+        Source/MonumentExtendedRegular.otf)
+
 # ---- Source files ----------------------------------------------------------
 target_sources(Sympathy
     PRIVATE
@@ -72,6 +78,7 @@ target_compile_definitions(Sympathy
 # ---- Link JUCE modules -----------------------------------------------------
 target_link_libraries(Sympathy
     PRIVATE
+        SympathyBinaryData
         juce::juce_audio_utils
         juce::juce_audio_devices
         juce::juce_audio_formats
