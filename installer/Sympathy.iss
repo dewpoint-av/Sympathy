@@ -3,7 +3,7 @@
 ; locations. Run build.bat first so build\dist\ is populated.
 
 #define MyAppName "Sympathy"
-#define MyAppVersion "1.0.3"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "Dewpoint AV"
 #define MyAppURL "https://dewpoint.live"
 
@@ -42,6 +42,10 @@ Source: "..\build\dist\Sympathy.vst3\*"; DestDir: "{commoncf}\VST3\{#MyAppName}.
 ; CLAP -> C:\Program Files\Common Files\CLAP\Sympathy.clap
 ; This is the standard system-wide CLAP search path (%COMMONPROGRAMFILES%\CLAP).
 Source: "..\build\dist\Sympathy.clap"; DestDir: "{commoncf}\CLAP"; Flags: ignoreversion
+
+[InstallDelete]
+Type: filesandordirs; Name: "{commoncf}\VST3\Sympathy.vst3"
+Type: files; Name: "{commoncf}\CLAP\Sympathy.clap"
 
 [Icons]
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"

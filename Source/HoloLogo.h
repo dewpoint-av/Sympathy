@@ -58,8 +58,9 @@ public:
         const juce::Colour a = juce::Colour::fromHSV (std::fmod (ph, 1.0f), 0.72f, 1.0f, 1.0f);
         const juce::Colour c = juce::Colour::fromHSV (std::fmod (ph + 0.45f, 1.0f), 0.70f, 1.0f, 1.0f);
 
-        // Soft glow.
-        g.setColour (a.withAlpha (0.30f));
+        // Soft pulsing glow.
+        const float glowAlpha = 0.22f + 0.14f * (0.5f + 0.5f * std::sin (phase * 6.2831853f));
+        g.setColour (a.withAlpha (glowAlpha));
         g.strokePath (p, juce::PathStrokeType (7.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
         // Iridescent gradient fill.

@@ -14,15 +14,19 @@ namespace
     juce::String secText  (float v) { return juce::String (v, 2)  + " s"; }
     juce::String pctText  (float v) { return juce::String (v * 100.0f, 0) + " %"; }
     juce::String gainText (float v) { return juce::String (v, 2)  + "x"; }
+    juce::String lfoText  (float v) { return juce::String (v, 2)  + " Hz"; }
+    juce::String voiceText(float v) { return juce::String (v, 0)  + "x"; }
 
     // ---- a labelled rotary knob bound to a parameter -----------------------
-    class Knob : public juce::Component
+    class Knob : public juce::Component,
+                 private juce::AudioProcessorValueTreeState::Listener
     {
     public:
         Knob (juce::AudioProcessorValueTreeState& state,
               const juce::String& paramId,
               const juce::String& name,
               std::function<juce::String (float)> textFn)
+            : stateRef (state), param (paramId), textFn (textFn)
         {
             slider.setSliderStyle (juce::Slider::Rotary);
             slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
@@ -43,14 +47,15 @@ namespace
             attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
                 state, paramId, slider);
 
-            slider.onValueChange = [this, textFn]
-            {
-                if (textFn)
-                    valueLabel.setText (textFn (static_cast<float> (slider.getValue())),
-                                        juce::dontSendNotification);
-            };
-            slider.onValueChange();
+            // Keep the value label in sync with the parameter at all times —
+            // both user drags and host automation / preset loads.
+            stateRef.addParameterListener (param, this);
+            refreshLabel();
         }
+
+        ~Knob() override { stateRef.removeParameterListener (param, this); }
+
+        void parameterChanged (const juce::String&, float) override { refreshLabel(); }
 
         void resized() override
         {
@@ -61,6 +66,17 @@ namespace
         }
 
     private:
+        void refreshLabel()
+        {
+            if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (stateRef.getParameter (param)))
+                if (textFn)
+                    valueLabel.setText (textFn (p->getNormalisableRange().convertFrom0to1 (p->getValue())),
+                                        juce::dontSendNotification);
+        }
+
+        juce::AudioProcessorValueTreeState& stateRef;
+        juce::String param;
+        std::function<juce::String (float)> textFn;
         juce::Slider slider;
         juce::Label nameLabel;
         juce::Label valueLabel;
@@ -150,6 +166,191 @@ namespace
         juce::AudioProcessorValueTreeState& state;
     };
 
+    // ---- the Refract power trigger -----------------------------------------
+    class RefractPowerButton : public juce::Component
+    {
+    public:
+        explicit RefractPowerButton (juce::AudioProcessorValueTreeState& st) : state (st) {}
+
+        void paint (juce::Graphics& g) override
+        {
+            const bool on = isOn();
+            auto r = getLocalBounds().toFloat().reduced (2.0f);
+            const juce::Colour col = on ? SympathyLookAndFeel::accent : SympathyLookAndFeel::muted;
+
+            if (on)
+            {
+                g.setColour (col.withAlpha (0.18f));
+                g.fillRoundedRectangle (r, 10.0f);
+                g.setColour (col.withAlpha (0.7f));
+                g.drawRoundedRectangle (r.reduced (1.0f), 10.0f, 1.5f);
+            }
+            else
+            {
+                g.setColour (SympathyLookAndFeel::panel);
+                g.fillRoundedRectangle (r, 10.0f);
+                g.setColour (SympathyLookAndFeel::border);
+                g.drawRoundedRectangle (r.reduced (0.5f), 10.0f, 1.0f);
+            }
+
+            const float cx = r.getCentreX();
+            const float cy = r.getCentreY() - 8.0f;
+            g.setColour (col);
+            g.drawEllipse (cx - 11.0f, cy - 11.0f, 22.0f, 22.0f, 2.0f);
+            g.drawLine (cx, cy - 7.0f, cx, cy + 7.0f, 2.0f);
+
+            g.setFont (monumentFont (10.0f, false));
+            g.setColour (on ? SympathyLookAndFeel::text : SympathyLookAndFeel::muted);
+            g.drawText (on ? "ACTIVE" : "OFF",
+                        juce::Rectangle<float> (r.getX(), cy + 13.0f, r.getWidth(), r.getBottom() - cy - 13.0f),
+                        juce::Justification::centredTop, false);
+        }
+
+        void mouseDown (const juce::MouseEvent&) override
+        {
+            if (auto* p = state.getParameter ("refractOn"))
+                p->setValueNotifyingHost (isOn() ? 0.0f : 1.0f);
+        }
+
+        bool isOn() const
+        {
+            return state.getRawParameterValue ("refractOn")->load() > 0.5f;
+        }
+
+    private:
+        juce::AudioProcessorValueTreeState& state;
+    };
+
+    // ---- a Refract mode selector button ------------------------------------
+    class RefractModeButton : public juce::Component
+    {
+    public:
+        RefractModeButton (int modeIdx, const juce::String& label,
+                           juce::AudioProcessorValueTreeState& st)
+            : index (modeIdx), name (label), state (st)
+        {
+        }
+
+        void paint (juce::Graphics& g) override
+        {
+            const bool sel = selected();
+            auto r = getLocalBounds().toFloat().reduced (1.5f);
+            const juce::Colour col = sel ? SympathyLookAndFeel::accent : SympathyLookAndFeel::muted;
+
+            if (sel)
+            {
+                g.setColour (col.withAlpha (0.15f));
+                g.fillRoundedRectangle (r, 7.0f);
+                g.setColour (col.withAlpha (0.65f));
+                g.drawRoundedRectangle (r.reduced (0.5f), 7.0f, 1.5f);
+            }
+            else
+            {
+                g.setColour (SympathyLookAndFeel::panel);
+                g.fillRoundedRectangle (r, 7.0f);
+                g.setColour (SympathyLookAndFeel::border);
+                g.drawRoundedRectangle (r.reduced (0.5f), 7.0f, 1.0f);
+            }
+
+            g.setFont (juce::Font (10.0f, sel ? juce::Font::bold : juce::Font::plain));
+            g.setColour (sel ? SympathyLookAndFeel::text : SympathyLookAndFeel::muted);
+            g.drawText (name, r, juce::Justification::centred, false);
+        }
+
+        void mouseDown (const juce::MouseEvent&) override
+        {
+            state.getParameter ("refractMode")->setValueNotifyingHost (
+                static_cast<float> (index) / static_cast<float> (sympathy::kNumRefractModes - 1));
+        }
+
+        bool selected() const
+        {
+            return juce::roundToInt (state.getRawParameterValue ("refractMode")->load()) == index;
+        }
+
+    private:
+        int index;
+        juce::String name;
+        juce::AudioProcessorValueTreeState& state;
+    };
+
+    // ---- animated dispersion orb -------------------------------------------
+    class RefractVisualizer : public juce::Component,
+                              private juce::Timer
+    {
+    public:
+        explicit RefractVisualizer (juce::AudioProcessorValueTreeState& st) : state (st)
+        {
+            startTimerHz (30);
+        }
+
+        ~RefractVisualizer() override { stopTimer(); }
+
+        void paint (juce::Graphics& g) override
+        {
+            const bool  on     = state.getRawParameterValue ("refractOn")->load() > 0.5f;
+            const float amount = state.getRawParameterValue ("refractAmount")->load();
+            const float spread = state.getRawParameterValue ("refractSpread")->load();
+            const int   voices = juce::roundToInt (state.getRawParameterValue ("refractVoices")->load());
+
+            auto r = getLocalBounds().toFloat().reduced (3.0f);
+            const float cx = r.getCentreX();
+            const float cy = r.getCentreY();
+            const float baseR = juce::jmin (r.getWidth(), r.getHeight()) * 0.5f - 5.0f;
+            const float alpha = on ? 0.95f : 0.22f;
+
+            g.setColour (SympathyLookAndFeel::border.withAlpha (alpha));
+            g.drawEllipse (cx - baseR, cy - baseR, baseR * 2.0f, baseR * 2.0f, 1.0f);
+
+            const int n = juce::jmax (2, voices);
+            std::vector<juce::Point<float>> pts;
+            pts.reserve (static_cast<size_t> (n));
+
+            const float pulse = 1.0f + 0.14f * std::sin (phase);
+            const float arcStart = 3.14159265358979323846f * 0.30f;
+            const float arcEnd   = 3.14159265358979323846f * 0.70f;
+
+            for (int i = 0; i < n; ++i)
+            {
+                const float t = (n > 1) ? static_cast<float> (i) / static_cast<float> (n - 1) : 0.5f;
+                const float ang = arcStart + (arcEnd - arcStart) * t
+                                + (t - 0.5f) * spread * 2.2f;
+                const float rr = baseR * (0.5f + 0.5f * amount) * pulse;
+                pts.push_back ({ cx + rr * std::cos (ang), cy + rr * std::sin (ang) });
+            }
+
+            g.setColour (SympathyLookAndFeel::accent.withAlpha (0.30f * alpha));
+            for (int i = 0; i + 1 < n; ++i)
+                g.drawLine (pts[static_cast<size_t> (i)].x, pts[static_cast<size_t> (i)].y,
+                            pts[static_cast<size_t> (i + 1)].x, pts[static_cast<size_t> (i + 1)].y, 1.0f);
+
+            for (int i = 0; i < n; ++i)
+            {
+                const bool edge = (i == 0 || i == n - 1);
+                const juce::Colour c = edge ? SympathyLookAndFeel::accent2 : SympathyLookAndFeel::accent;
+                const float sz = edge ? 4.5f : 3.5f;
+                const auto& p = pts[static_cast<size_t> (i)];
+                g.setColour (c.withAlpha (0.35f * alpha));
+                g.fillEllipse (p.x - sz - 2.0f, p.y - sz - 2.0f, (sz + 2.0f) * 2.0f, (sz + 2.0f) * 2.0f);
+                g.setColour (c.withAlpha (alpha));
+                g.fillEllipse (p.x - sz, p.y - sz, sz * 2.0f, sz * 2.0f);
+            }
+        }
+
+        void timerCallback() override
+        {
+            const float rate = state.getRawParameterValue ("refractLfoRate")->load();
+            phase += (2.0f * 3.14159265358979323846f * rate) / 30.0f;
+            if (phase > 2.0f * 3.14159265358979323846f)
+                phase -= 2.0f * 3.14159265358979323846f;
+            repaint();
+        }
+
+    private:
+        juce::AudioProcessorValueTreeState& state;
+        float phase = 0.0f;
+    };
+
     // ---- layout helper -----------------------------------------------------
     void layoutKnobs (std::vector<std::unique_ptr<Knob>>& knobs, int cols,
                       juce::Rectangle<int> area, int gapX, int gapY)
@@ -188,12 +389,21 @@ public:
     ~Impl() override
     {
         processor.getParameters().removeParameterListener ("material", this);
+        processor.getParameters().removeParameterListener ("refractOn", this);
+        processor.getParameters().removeParameterListener ("refractMode", this);
     }
 
     void parameterChanged (const juce::String& paramID, float) override
     {
         if (paramID == "material")
             for (auto& b : materialButtons)
+                b->repaint();
+
+        if (paramID == "refractOn")
+            refractPower->repaint();
+
+        if (paramID == "refractMode")
+            for (auto& b : refractModeButtons)
                 b->repaint();
     }
 
@@ -211,15 +421,21 @@ public:
     std::unique_ptr<Panel> bodyPanel;
     std::unique_ptr<Panel> stringsPanel;
     std::unique_ptr<Panel> globalPanel;
+    std::unique_ptr<Panel> refractPanel;
 
     std::vector<std::unique_ptr<Knob>> bodyKnobs;
     std::vector<std::unique_ptr<Knob>> stringKnobs;
     std::vector<std::unique_ptr<Knob>> globalKnobs;
+    std::vector<std::unique_ptr<Knob>> refractKnobs;
+
+    std::unique_ptr<RefractPowerButton> refractPower;
+    std::unique_ptr<RefractVisualizer> refractVisual;
+    std::vector<std::unique_ptr<RefractModeButton>> refractModeButtons;
 
     void build()
     {
         // --- header --------------------------------------------------------
-        title = std::make_unique<HoloTitle> ("SYMPATHY", 32.0f, true);
+        title = std::make_unique<HoloTitle> ("SYMPATHY", 42.0f, true);
 
         subtitle.setText ("PHYSICAL MODELING RESONATOR", juce::dontSendNotification);
         subtitle.setFont (juce::Font (12.0f, juce::Font::bold));
@@ -231,7 +447,7 @@ public:
         brand.setColour (juce::Label::textColourId, SympathyLookAndFeel::accent);
         brand.setJustificationType (juce::Justification::centredRight);
 
-        footer.setText ("DEWPOINT AV", juce::dontSendNotification);
+        footer.setText (juce::String ("DEWPOINT AV  ·  v") + juce::String (JucePlugin_VersionString), juce::dontSendNotification);
         footer.setFont (monumentFont (11.0f, false));
         footer.setColour (juce::Label::textColourId, SympathyLookAndFeel::muted);
         footer.setJustificationType (juce::Justification::centred);
@@ -267,6 +483,27 @@ public:
         globalKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "input", "INPUT", gainText));
         globalKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "mix", "MIX", pctText));
         globalKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "output", "OUTPUT", gainText));
+
+        // --- refract (super unison multi-FX) --------------------------------
+        refractPanel = std::make_unique<Panel> ("REFRACT  ·  SUPER UNISON");
+        refractPower = std::make_unique<RefractPowerButton> (processor.getParameters());
+        refractVisual = std::make_unique<RefractVisualizer> (processor.getParameters());
+
+        static const char* modeLabels[sympathy::kNumRefractModes] =
+            { "UNISON", "BANDPASS", "COMB", "BITCRUSH", "DISTORT", "HARMONIZER" };
+        for (int i = 0; i < sympathy::kNumRefractModes; ++i)
+            refractModeButtons.push_back (std::make_unique<RefractModeButton> (
+                i, modeLabels[i], processor.getParameters()));
+
+        refractKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "refractVoices", "VOICES", voiceText));
+        refractKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "refractAmount", "AMOUNT", pctText));
+        refractKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "refractMix", "MIX", pctText));
+        refractKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "refractSpread", "SPREAD", pctText));
+        refractKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "refractLfoRate", "LFO RATE", lfoText));
+        refractKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "refractLfoDepth", "LFO DEPTH", pctText));
+
+        processor.getParameters().addParameterListener ("refractOn", this);
+        processor.getParameters().addParameterListener ("refractMode", this);
     }
 
     void attachTo (juce::Component& root)
@@ -292,6 +529,14 @@ public:
         root.addAndMakeVisible (*globalPanel);
         for (auto& k : globalKnobs)
             globalPanel->addAndMakeVisible (*k);
+
+        root.addAndMakeVisible (*refractPanel);
+        refractPanel->addAndMakeVisible (*refractPower);
+        refractPanel->addAndMakeVisible (*refractVisual);
+        for (auto& b : refractModeButtons)
+            refractPanel->addAndMakeVisible (*b);
+        for (auto& k : refractKnobs)
+            refractPanel->addAndMakeVisible (*k);
     }
 
     void resized (juce::Rectangle<int> area)
@@ -303,7 +548,7 @@ public:
         b.removeFromBottom (2);
 
         // Header
-        auto header = b.removeFromTop (46);
+        auto header = b.removeFromTop (58);
         title->setBounds (header.removeFromLeft (340));
         brand.setBounds (header.removeFromRight (220));
         subtitle.setBounds (header);
@@ -318,10 +563,16 @@ public:
 
         b.removeFromTop (8);
 
-        // Visualizer fills the middle; panels sit at the bottom.
-        const int panelH = 168;
-        const int gap = 12;
-        visualizer->setBounds (b.removeFromTop (juce::jmax (60, b.getHeight() - panelH - gap)));
+        // Visualizer fills the middle; refract + panels sit at the bottom.
+        const int panelH   = 168;
+        const int refractH = 186;
+        const int gap      = 12;
+
+        visualizer->setBounds (b.removeFromTop (
+            juce::jmax (60, b.getHeight() - refractH - panelH - 2 * gap)));
+        b.removeFromTop (gap);
+
+        refractPanel->setBounds (b.removeFromTop (refractH));
         b.removeFromTop (gap);
 
         const int bodyW = juce::jmax (280, static_cast<int> (b.getWidth() * 0.40f));
@@ -338,14 +589,33 @@ public:
         bb.removeFromTop (30);
         layoutKnobs (bodyKnobs, 5, bb, 6, 0);
 
-        // Strings / global: 2x2 grids.
+        // Strings / global: single row (bigger, more legible knobs).
         auto sb = stringsPanel->getLocalBounds().reduced (12);
         sb.removeFromTop (30);
-        layoutKnobs (stringKnobs, 2, sb, 8, 8);
+        layoutKnobs (stringKnobs, 4, sb, 8, 0);
 
         auto gb = globalPanel->getLocalBounds().reduced (12);
         gb.removeFromTop (30);
-        layoutKnobs (globalKnobs, 2, gb, 8, 8);
+        layoutKnobs (globalKnobs, 4, gb, 8, 0);
+
+        // Refract panel: power + orb on the left, modes + knobs on the right.
+        auto rb = refractPanel->getLocalBounds().reduced (12);
+        rb.removeFromTop (30);
+        auto left = rb.removeFromLeft (118);
+        refractPower->setBounds (left.removeFromTop (44));
+        refractVisual->setBounds (left.reduced (6, 2));
+
+        auto modeRow = rb.removeFromTop (40);
+        const int mgap = 6;
+        const int mcell = (modeRow.getWidth() - mgap * (static_cast<int> (refractModeButtons.size()) - 1))
+                        / static_cast<int> (refractModeButtons.size());
+        for (auto& mb : refractModeButtons)
+        {
+            mb->setBounds (modeRow.removeFromLeft (mcell));
+            modeRow.removeFromLeft (mgap);
+        }
+
+        layoutKnobs (refractKnobs, 6, rb, 6, 0);
     }
 };
 
@@ -360,8 +630,8 @@ SympathyAudioProcessorEditor::SympathyAudioProcessorEditor (SympathyAudioProcess
     impl->attachTo (*this);
 
     setResizable (true, true);
-    setResizeLimits (680, 480, 1500, 1000);
-    setSize (940, 680);
+    setResizeLimits (680, 640, 1500, 1000);
+    setSize (960, 840);
 }
 
 SympathyAudioProcessorEditor::~SympathyAudioProcessorEditor()
@@ -371,7 +641,11 @@ SympathyAudioProcessorEditor::~SympathyAudioProcessorEditor()
 
 void SympathyAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (SympathyLookAndFeel::background);
+    const auto b = getLocalBounds().toFloat();
+    g.setGradientFill (juce::ColourGradient (
+        SympathyLookAndFeel::background.brighter (0.05f), b.getCentreX(), b.getCentreY(),
+        SympathyLookAndFeel::background, b.getWidth() * 0.65f, b.getHeight() * 0.65f, true));
+    g.fillAll();
 }
 
 void SympathyAudioProcessorEditor::resized()

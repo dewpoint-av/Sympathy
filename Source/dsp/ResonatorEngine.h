@@ -28,6 +28,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "RefractEngine.h"
+
 namespace sympathy
 {
     static constexpr int kMaxModes      = 64;
@@ -226,6 +228,7 @@ namespace sympathy
         void prepare (double sampleRate, int maxBlockSize);
         void reset();
         void setParams (const Params& p);
+        void setRefractParams (const RefractParams& p);
         void process (const float* inL, const float* inR,
                       float* outL, float* outR, int numSamples);
 
@@ -243,6 +246,7 @@ namespace sympathy
         ModalBank  body[kNumChannels];
         StringBank strings[kNumChannels];
         NoiseSource noise[kNumChannels] { { 0x9E3779B9u }, { 0x85EBCA6Bu } };
+        RefractEngine refract;
 
         std::atomic<float> level { 0.0f };
         float meter = 0.0f;   // audio-thread-only smoothing state

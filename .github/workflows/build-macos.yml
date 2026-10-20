@@ -42,7 +42,10 @@ jobs:
           cp -R dist/Sympathy.vst3      payload/Library/Audio/Plug-Ins/VST3/
           cp -R dist/Sympathy.component payload/Library/Audio/Plug-Ins/Components/
           cp -R dist/Sympathy.clap      payload/Library/Audio/Plug-Ins/CLAP/
-          pkgbuild --root payload --identifier com.dewpoint.Sympathy --version 1.0.3 --install-location / Sympathy-1.0.3-mac.pkg
+          mkdir -p scripts
+          printf '#!/bin/sh\nrm -rf "/Library/Audio/Plug-Ins/VST3/Sympathy.vst3"\nrm -rf "/Library/Audio/Plug-Ins/Components/Sympathy.component"\nrm -rf "/Library/Audio/Plug-Ins/CLAP/Sympathy.clap"\nexit 0\n' > scripts/preinstall
+          chmod +x scripts/preinstall
+          pkgbuild --root payload --scripts scripts --identifier com.dewpoint.Sympathy --version 1.1.0 --install-location / Sympathy-1.1.0-mac.pkg
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -50,4 +53,4 @@ jobs:
           name: Sympathy-macOS
           path: |
             dist/**
-            Sympathy-1.0.3-mac.pkg
+            Sympathy-1.1.0-mac.pkg

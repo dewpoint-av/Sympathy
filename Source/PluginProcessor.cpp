@@ -10,6 +10,11 @@ namespace
             names.add (sympathy::kMaterials[i].name);
         return names;
     }
+
+    juce::StringArray refractModeNames()
+    {
+        return { "Unison", "Bandpass", "Comb", "Bitcrusher", "Distortion", "Harmonizer" };
+    }
 }
 
 SympathyAudioProcessor::SympathyAudioProcessor()
@@ -45,7 +50,23 @@ SympathyAudioProcessor::SympathyAudioProcessor()
             std::make_unique<juce::AudioParameterFloat> ("mix", "Mix",
                 0.0f, 1.0f, 0.5f),
             std::make_unique<juce::AudioParameterFloat> ("output", "Output",
-                0.0f, 2.0f, 1.0f)
+                0.0f, 2.0f, 1.0f),
+            std::make_unique<juce::AudioParameterBool> ("refractOn", "Refract",
+                false),
+            std::make_unique<juce::AudioParameterChoice> ("refractMode", "Refract Mode",
+                refractModeNames(), 0),
+            std::make_unique<juce::AudioParameterInt> ("refractVoices", "Refract Voices",
+                2, 8, 4),
+            std::make_unique<juce::AudioParameterFloat> ("refractAmount", "Refract Amount",
+                0.0f, 1.0f, 0.40f),
+            std::make_unique<juce::AudioParameterFloat> ("refractMix", "Refract Mix",
+                0.0f, 1.0f, 0.35f),
+            std::make_unique<juce::AudioParameterFloat> ("refractSpread", "Refract Spread",
+                0.0f, 1.0f, 0.70f),
+            std::make_unique<juce::AudioParameterFloat> ("refractLfoRate", "Refract LFO Rate",
+                0.02f, 8.0f, 0.25f),
+            std::make_unique<juce::AudioParameterFloat> ("refractLfoDepth", "Refract LFO Depth",
+                0.0f, 1.0f, 0.30f)
         })
 {
 }
@@ -147,6 +168,17 @@ void SympathyAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     p.output        = param ("output");
 
     engine.setParams (p);
+
+    sympathy::RefractParams rp;
+    rp.on       = param ("refractOn") > 0.5f;
+    rp.mode     = juce::roundToInt (param ("refractMode"));
+    rp.voices   = juce::roundToInt (param ("refractVoices"));
+    rp.amount   = param ("refractAmount");
+    rp.mix      = param ("refractMix");
+    rp.spread   = param ("refractSpread");
+    rp.lfoRate  = param ("refractLfoRate");
+    rp.lfoDepth = param ("refractLfoDepth");
+    engine.setRefractParams (rp);
 
     const int numSamples = buffer.getNumSamples();
 

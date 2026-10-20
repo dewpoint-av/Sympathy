@@ -170,6 +170,7 @@ namespace sympathy
             b.prepare (sr);
         for (auto& s : strings)
             s.prepare (sr, maxBlockSize);
+        refract.prepare (sr, maxBlockSize);
         updateAll (sr);
         meter = 0.0f;
         level.store (0.0f);
@@ -181,6 +182,7 @@ namespace sympathy
             b.reset();
         for (auto& s : strings)
             s.reset();
+        refract.reset();
         meter = 0.0f;
         level.store (0.0f);
     }
@@ -191,6 +193,11 @@ namespace sympathy
             return;   // nothing changed -> skip re-computing mode/string coefficients
         p = newParams;
         updateAll (sampleRate);
+    }
+
+    void ResonatorEngine::setRefractParams (const RefractParams& newParams)
+    {
+        refract.setParams (newParams);
     }
 
     void ResonatorEngine::updateAll (double sr)
@@ -220,12 +227,16 @@ namespace sympathy
             const float wetR = p.body    * body[1].process (excR)
                              + p.strings * strings[1].process (excR);
 
+            // Refract: a super-unison multi-FX layer applied to the wet voice.
+            float refL, refR;
+            refract.processSample (wetL, wetR, refL, refR);
+
             const float absL = std::fabs (wetL);
             const float absR = std::fabs (wetR);
             maxWet = std::max (maxWet, std::max (absL, absR));
 
-            outL[i] = ((1.0f - p.mix) * l + p.mix * wetL) * p.output;
-            outR[i] = ((1.0f - p.mix) * r + p.mix * wetR) * p.output;
+            outL[i] = (((1.0f - p.mix) * l + p.mix * wetL) + refL) * p.output;
+            outR[i] = (((1.0f - p.mix) * r + p.mix * wetR) + refR) * p.output;
         }
 
         // Smooth peak meter (audio thread only; the GUI reads the atomic).

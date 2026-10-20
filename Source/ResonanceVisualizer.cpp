@@ -236,7 +236,7 @@ void ResonanceVisualizer::paint (juce::Graphics& g)
 
     // --- particles (on top) --------------------------------------------------
     // Constellations: join nearby particles with faint blue links.
-    const float linkDist  = 55.0f;
+    const float linkDist  = 65.0f;
     const float linkDist2 = linkDist * linkDist;
     for (size_t i = 0; i < particles.size(); ++i)
     {
@@ -247,7 +247,7 @@ void ResonanceVisualizer::paint (juce::Graphics& g)
             const float d2 = dx * dx + dy * dy;
             if (d2 < linkDist2)
             {
-                const float a = (1.0f - std::sqrt (d2) / linkDist) * 0.30f;
+                const float a = (1.0f - std::sqrt (d2) / linkDist) * 0.38f;
                 g.setColour (juce::Colour (0xff6ea8fe).withAlpha (a));
                 g.drawLine (particles[i].x, particles[i].y, particles[j].x, particles[j].y, 0.8f);
             }
