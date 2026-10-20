@@ -1,0 +1,51 @@
+name: Build macOS
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    name: macOS universal2 (VST3 + AU + CLAP)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Stage bundles
+        run: |
+          mkdir -p dist
+          cp -R build/Sympathy_artefacts/Release/VST3/Sympathy.vst3      dist/
+          cp -R build/Sympathy_artefacts/Release/AU/Sympathy.component   dist/
+          cp -R build/Sympathy_artefacts/Release/CLAP/Sympathy.clap      dist/
+
+      - name: Create disk image
+        run: |
+          mkdir -p dmg
+          cp -R dist/. dmg/
+          ln -s /Library/Audio/Plug-Ins "dmg/Audio Plug-Ins"
+          printf 'Sympathy - Physical Modeling Resonator\n\nDrag each bundle into the matching folder inside "Audio Plug-Ins":\n\n    Sympathy.vst3        ->  VST3/\n    Sympathy.component   ->  Components/\n    Sympathy.clap        ->  CLAP/\n' > dmg/README.txt
+          hdiutil create -volname "Sympathy" -srcfolder dmg -ov -format UDZO Sympathy-1.0.0-mac.dmg
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sympathy-macOS
+          path: |
+            dist/**
+            Sympathy-1.0.0-mac.dmg

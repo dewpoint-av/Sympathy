@@ -1,0 +1,13 @@
+# Normalize line endings; keep platform-sensitive files explicit.
+* text=auto
+
+# Shell scripts must stay LF (macOS/Linux shebang).
+*.sh text eol=lf
+
+# Windows batch/installer scripts.
+*.bat text eol=crlf
+*.iss text eol=crlf
+
+# YAML (GitHub Actions) stays LF.
+*.yml text eol=lf
+*.yaml text eol=lf
