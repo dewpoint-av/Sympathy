@@ -20,7 +20,8 @@ namespace
 
     // ---- a labelled rotary knob bound to a parameter -----------------------
     class Knob : public juce::Component,
-                 private juce::AudioProcessorValueTreeState::Listener
+                 private juce::AudioProcessorValueTreeState::Listener,
+                 private juce::AsyncUpdater
     {
     public:
         Knob (juce::AudioProcessorValueTreeState& state,
@@ -59,7 +60,12 @@ namespace
 
         ~Knob() override { stateRef.removeParameterListener (param, this); }
 
-        void parameterChanged (const juce::String&, float) override { refreshLabel(); }
+        // parameterChanged can fire on the audio thread (host automation) or at
+        // mouse-move rate during a drag — marshal + coalesce the label update to
+        // the message thread so we never touch the Label off-thread.
+        void parameterChanged (const juce::String&, float) override { triggerAsyncUpdate(); }
+
+        void handleAsyncUpdate() override { refreshLabel(); }
 
         void resized() override
         {
@@ -381,7 +387,8 @@ namespace
 }
 
 // ===========================================================================
-class SympathyAudioProcessorEditor::Impl : private juce::AudioProcessorValueTreeState::Listener
+class SympathyAudioProcessorEditor::Impl : private juce::AudioProcessorValueTreeState::Listener,
+                                           private juce::AsyncUpdater
 {
 public:
     explicit Impl (SympathyAudioProcessor& proc)
@@ -399,19 +406,15 @@ public:
             processor.getParameters().removeParameterListener (id, this);
     }
 
-    void parameterChanged (const juce::String& paramID, float) override
+    // Repaint is marshalled to the message thread (parameterChanged may arrive
+    // on the audio thread during host automation).
+    void parameterChanged (const juce::String&, float) override { triggerAsyncUpdate(); }
+
+    void handleAsyncUpdate() override
     {
-        if (paramID == "material")
-            for (auto& b : materialButtons)
-                b->repaint();
-
-        if (paramID == "refractOn")
-            refractPower->repaint();
-
-        if (paramID == "refractUnison" || paramID == "refractHarmonizer" || paramID == "refractBandpass"
-            || paramID == "refractDistort" || paramID == "refractBitcrush" || paramID == "refractComb")
-            for (auto& b : refractFxButtons)
-                b->repaint();
+        for (auto& b : materialButtons) b->repaint();
+        if (refractPower != nullptr)  refractPower->repaint();
+        for (auto& b : refractFxButtons) b->repaint();
     }
 
     SympathyAudioProcessor& processor;
