@@ -12,6 +12,15 @@ jobs:
   build-macos:
     name: macOS universal2 (VST3 + AU + CLAP)
     runs-on: macos-latest
+    env:
+      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+      MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+      MACOS_INSTALLER_CERTIFICATE: ${{ secrets.MACOS_INSTALLER_CERTIFICATE }}
+      MACOS_INSTALLER_CERTIFICATE_PWD: ${{ secrets.MACOS_INSTALLER_CERTIFICATE_PWD }}
+      MACOS_KEYCHAIN_PWD: ${{ secrets.MACOS_KEYCHAIN_PWD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_ID_APP_PASSWORD: ${{ secrets.APPLE_ID_APP_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
     steps:
       - name: Checkout
@@ -39,7 +48,7 @@ jobs:
       # (e.g. pull requests from forks), producing unsigned bundles as before.
 
       - name: Import signing certificates
-        if: ${{ secrets.MACOS_CERTIFICATE != '' }}
+        if: ${{ env.MACOS_CERTIFICATE != '' }}
         env:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
@@ -133,7 +142,7 @@ jobs:
           fi
 
       - name: Code sign bundles
-        if: ${{ secrets.MACOS_CERTIFICATE != '' }}
+        if: ${{ env.MACOS_CERTIFICATE != '' }}
         run: |
           for BUNDLE in dist/Sympathy.vst3 dist/Sympathy.component dist/Sympathy.clap; do
             echo "=== Signing $BUNDLE ==="
@@ -151,7 +160,7 @@ jobs:
           done
 
       - name: Notarize and staple bundles
-        if: ${{ secrets.MACOS_CERTIFICATE != '' && secrets.APPLE_ID != '' }}
+        if: ${{ env.MACOS_CERTIFICATE != '' && env.APPLE_ID != '' }}
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_APP_PASSWORD: ${{ secrets.APPLE_ID_APP_PASSWORD }}
@@ -189,7 +198,7 @@ jobs:
           pkgbuild --root payload --scripts scripts --identifier com.dewpoint.Sympathy --version 1.2.2 --install-location / Sympathy-1.2.2-mac.pkg
 
       - name: Sign installer package (productsign)
-        if: ${{ secrets.MACOS_CERTIFICATE != '' && secrets.MACOS_INSTALLER_CERTIFICATE != '' }}
+        if: ${{ env.MACOS_CERTIFICATE != '' && env.MACOS_INSTALLER_CERTIFICATE != '' }}
         run: |
           if [ -z "${INSTALLER_IDENTITY:-}" ]; then
             echo "::error::No Developer ID Installer identity available for productsign"
@@ -202,7 +211,7 @@ jobs:
           pkgutil --check-signature Sympathy-1.2.2-mac.pkg
 
       - name: Notarize and staple installer package
-        if: ${{ secrets.MACOS_CERTIFICATE != '' && secrets.MACOS_INSTALLER_CERTIFICATE != '' && secrets.APPLE_ID != '' }}
+        if: ${{ env.MACOS_CERTIFICATE != '' && env.MACOS_INSTALLER_CERTIFICATE != '' && env.APPLE_ID != '' }}
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_APP_PASSWORD: ${{ secrets.APPLE_ID_APP_PASSWORD }}
