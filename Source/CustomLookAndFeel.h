@@ -80,17 +80,26 @@ public:
         juce::Path arc;
         arc.addCentredArc (cx, cy, radius, radius, 0.0f, rotaryStartAngle, valueAngle, true);
 
-        juce::Path glowArc, coreArc;
-        juce::PathStrokeType (8.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded).createStrokedPath (glowArc, arc);
-        juce::PathStrokeType (3.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded).createStrokedPath (coreArc, arc);
+        // Draw the value arc as short coloured segments — avoids stroked-path
+        // construction and gradient fills, which are fragile on Windows.
+        const float sweep = valueAngle - rotaryStartAngle;
+        const int segs = juce::jmax (1, juce::roundToInt (std::fabs (sweep) / 0.16f));
+        for (int s = 0; s < segs; ++s)
+        {
+            const float t0 = static_cast<float> (s) / segs;
+            const float t1 = static_cast<float> (s + 1) / segs;
+            const float mid = (t0 + t1) * 0.5f;
+            const juce::Colour c = mid < 0.5f ? blue.interpolatedWith  (purple, mid * 2.0f)
+                                              : purple.interpolatedWith (red,    (mid - 0.5f) * 2.0f);
 
-        g.setColour (accent.withAlpha (0.28f));
-        g.fillPath (glowArc);
-
-        juce::ColourGradient grad (blue, cx - radius, cy, red, cx + radius, cy, false);
-        grad.addColour (0.5, purple);
-        g.setGradientFill (grad);
-        g.fillPath (coreArc);
+            juce::Path seg;
+            seg.addCentredArc (cx, cy, radius, radius, 0.0f,
+                               rotaryStartAngle + sweep * t0, rotaryStartAngle + sweep * t1, true);
+            g.setColour (c.withAlpha (0.28f));
+            g.strokePath (seg, juce::PathStrokeType (7.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            g.setColour (c);
+            g.strokePath (seg, juce::PathStrokeType (3.2f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        }
 
         // Glowing needle.
         const float nx = std::sin (valueAngle);
