@@ -187,6 +187,7 @@ jobs:
           printf '#!/bin/sh\nrm -rf "/Library/Audio/Plug-Ins/VST3/Sympathy.vst3"\nrm -rf "/Library/Audio/Plug-Ins/Components/Sympathy.component"\nrm -rf "/Library/Audio/Plug-Ins/CLAP/Sympathy.clap"\nexit 0\n' > scripts/preinstall
           chmod +x scripts/preinstall
           pkgbuild --root payload --scripts scripts --identifier com.dewpoint.Sympathy --version 1.2.2 --install-location / Sympathy-1.2.2-mac.pkg
+<<<<<<< HEAD
 
       - name: Sign installer package (productsign)
         if: ${{ secrets.MACOS_CERTIFICATE != '' && secrets.MACOS_INSTALLER_CERTIFICATE != '' }}
@@ -213,6 +214,8 @@ jobs:
             --wait --timeout 30m 2>&1 | tee notarize_pkg.txt
           xcrun stapler staple  Sympathy-1.2.2-mac.pkg
           xcrun stapler validate Sympathy-1.2.2-mac.pkg
+=======
+>>>>>>> c3b94dbbf973eebf1d741555fdd1ef6dc817ee7d
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -221,6 +224,7 @@ jobs:
           path: |
             dist/**
             Sympathy-1.2.2-mac.pkg
+<<<<<<< HEAD
 
       - name: Cleanup keychain
         if: always()
@@ -229,3 +233,5 @@ jobs:
             security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
           fi
           rm -f "$RUNNER_TEMP"/*.p12 2>/dev/null || true
+=======
+>>>>>>> c3b94dbbf973eebf1d741555fdd1ef6dc817ee7d
