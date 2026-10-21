@@ -72,8 +72,8 @@ public:
         {
             const float ang = rotaryStartAngle + (static_cast<float> (i) / numTicks) * (rotaryEndAngle - rotaryStartAngle);
             g.setColour (muted.withAlpha (0.5f));
-            g.drawLine (cx + (radius + 3.5f) * std::cos (ang), cy + (radius + 3.5f) * std::sin (ang),
-                        cx + (radius + 6.5f) * std::cos (ang), cy + (radius + 6.5f) * std::sin (ang), 1.0f);
+            g.drawLine (cx + (radius + 3.5f) * std::sin (ang), cy - (radius + 3.5f) * std::cos (ang),
+                        cx + (radius + 6.5f) * std::sin (ang), cy - (radius + 6.5f) * std::cos (ang), 1.0f);
         }
 
         // Value arc: thick iridescent gradient (blue -> purple -> red) + glow.
@@ -93,8 +93,8 @@ public:
         g.fillPath (coreArc);
 
         // Glowing needle.
-        const float nx = std::cos (valueAngle);
-        const float ny = std::sin (valueAngle);
+        const float nx = std::sin (valueAngle);
+        const float ny = -std::cos (valueAngle);
         g.setColour (accent.withAlpha (0.45f));
         g.drawLine (cx, cy, cx + radius * nx, cy + radius * ny, 5.0f);
         g.setColour (juce::Colours::white.withAlpha (0.95f));

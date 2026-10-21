@@ -31,8 +31,8 @@ namespace
         {
             slider.setSliderStyle (juce::Slider::Rotary);
             slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-            slider.setRotaryParameters ({ juce::MathConstants<float>::pi * 0.75f,
-                                          juce::MathConstants<float>::pi * 2.25f,
+            slider.setRotaryParameters ({ juce::MathConstants<float>::pi * 1.25f,
+                                          juce::MathConstants<float>::pi * 2.75f,
                                           true });
 
             addAndMakeVisible (slider);
