@@ -225,13 +225,13 @@ namespace
         juce::AudioProcessorValueTreeState& state;
     };
 
-    // ---- a Refract mode selector button ------------------------------------
-    class RefractModeButton : public juce::Component
+    // ---- a Refraction stage toggle button ----------------------------------
+    class RefractFxButton : public juce::Component
     {
     public:
-        RefractModeButton (int modeIdx, const juce::String& label,
-                           juce::AudioProcessorValueTreeState& st)
-            : index (modeIdx), name (label), state (st)
+        RefractFxButton (const juce::String& paramId, const juce::String& label,
+                         juce::AudioProcessorValueTreeState& st)
+            : param (paramId), name (label), state (st)
         {
         }
 
@@ -263,17 +263,17 @@ namespace
 
         void mouseDown (const juce::MouseEvent&) override
         {
-            state.getParameter ("refractMode")->setValueNotifyingHost (
-                static_cast<float> (index) / static_cast<float> (sympathy::kNumRefractModes - 1));
+            if (auto* p = state.getParameter (param))
+                p->setValueNotifyingHost (selected() ? 0.0f : 1.0f);
         }
 
         bool selected() const
         {
-            return juce::roundToInt (state.getRawParameterValue ("refractMode")->load()) == index;
+            return state.getRawParameterValue (param)->load() > 0.5f;
         }
 
     private:
-        int index;
+        juce::String param;
         juce::String name;
         juce::AudioProcessorValueTreeState& state;
     };
@@ -394,7 +394,9 @@ public:
     {
         processor.getParameters().removeParameterListener ("material", this);
         processor.getParameters().removeParameterListener ("refractOn", this);
-        processor.getParameters().removeParameterListener ("refractMode", this);
+        for (const auto* id : { "refractUnison", "refractHarmonizer", "refractBandpass",
+                                "refractDistort", "refractBitcrush", "refractComb" })
+            processor.getParameters().removeParameterListener (id, this);
     }
 
     void parameterChanged (const juce::String& paramID, float) override
@@ -406,8 +408,9 @@ public:
         if (paramID == "refractOn")
             refractPower->repaint();
 
-        if (paramID == "refractMode")
-            for (auto& b : refractModeButtons)
+        if (paramID == "refractUnison" || paramID == "refractHarmonizer" || paramID == "refractBandpass"
+            || paramID == "refractDistort" || paramID == "refractBitcrush" || paramID == "refractComb")
+            for (auto& b : refractFxButtons)
                 b->repaint();
     }
 
@@ -436,7 +439,7 @@ public:
 
     std::unique_ptr<RefractPowerButton> refractPower;
     std::unique_ptr<RefractVisualizer> refractVisual;
-    std::vector<std::unique_ptr<RefractModeButton>> refractModeButtons;
+    std::vector<std::unique_ptr<RefractFxButton>> refractFxButtons;
 
     void build()
     {
@@ -502,11 +505,18 @@ public:
         refractPower = std::make_unique<RefractPowerButton> (processor.getParameters());
         refractVisual = std::make_unique<RefractVisualizer> (processor.getParameters());
 
-        static const char* modeLabels[sympathy::kNumRefractModes] =
-            { "UNISON", "BANDPASS", "COMB", "BITCRUSH", "DISTORT", "HARMONIZER" };
-        for (int i = 0; i < sympathy::kNumRefractModes; ++i)
-            refractModeButtons.push_back (std::make_unique<RefractModeButton> (
-                i, modeLabels[i], processor.getParameters()));
+        refractFxButtons.push_back (std::make_unique<RefractFxButton> (
+            "refractUnison", "UNISON", processor.getParameters()));
+        refractFxButtons.push_back (std::make_unique<RefractFxButton> (
+            "refractHarmonizer", "HARMONIZER", processor.getParameters()));
+        refractFxButtons.push_back (std::make_unique<RefractFxButton> (
+            "refractBandpass", "BANDPASS", processor.getParameters()));
+        refractFxButtons.push_back (std::make_unique<RefractFxButton> (
+            "refractDistort", "DISTORT", processor.getParameters()));
+        refractFxButtons.push_back (std::make_unique<RefractFxButton> (
+            "refractBitcrush", "BITCRUSH", processor.getParameters()));
+        refractFxButtons.push_back (std::make_unique<RefractFxButton> (
+            "refractComb", "COMB", processor.getParameters()));
 
         refractKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "refractVoices", "VOICES", voiceText));
         refractKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "refractAmount", "AMOUNT", pctText));
@@ -516,7 +526,9 @@ public:
         refractKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "refractLfoDepth", "LFO DEPTH", pctText));
 
         processor.getParameters().addParameterListener ("refractOn", this);
-        processor.getParameters().addParameterListener ("refractMode", this);
+        for (const auto* id : { "refractUnison", "refractHarmonizer", "refractBandpass",
+                                "refractDistort", "refractBitcrush", "refractComb" })
+            processor.getParameters().addParameterListener (id, this);
     }
 
     void attachTo (juce::Component& root)
@@ -548,7 +560,7 @@ public:
         root.addAndMakeVisible (*refractPanel);
         refractPanel->addAndMakeVisible (*refractPower);
         refractPanel->addAndMakeVisible (*refractVisual);
-        for (auto& b : refractModeButtons)
+        for (auto& b : refractFxButtons)
             refractPanel->addAndMakeVisible (*b);
         for (auto& k : refractKnobs)
             refractPanel->addAndMakeVisible (*k);
@@ -629,9 +641,9 @@ public:
 
         auto modeRow = rb.removeFromTop (40);
         const int mgap = 6;
-        const int mcell = (modeRow.getWidth() - mgap * (static_cast<int> (refractModeButtons.size()) - 1))
-                        / static_cast<int> (refractModeButtons.size());
-        for (auto& mb : refractModeButtons)
+        const int mcell = (modeRow.getWidth() - mgap * (static_cast<int> (refractFxButtons.size()) - 1))
+                        / static_cast<int> (refractFxButtons.size());
+        for (auto& mb : refractFxButtons)
         {
             mb->setBounds (modeRow.removeFromLeft (mcell));
             modeRow.removeFromLeft (mgap);

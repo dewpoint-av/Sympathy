@@ -11,10 +11,6 @@ namespace
         return names;
     }
 
-    juce::StringArray refractModeNames()
-    {
-        return { "Unison", "Bandpass", "Comb", "Bitcrusher", "Distortion", "Harmonizer" };
-    }
 }
 
 SympathyAudioProcessor::SympathyAudioProcessor()
@@ -53,8 +49,18 @@ SympathyAudioProcessor::SympathyAudioProcessor()
                 0.0f, 2.0f, 1.0f),
             std::make_unique<juce::AudioParameterBool> ("refractOn", "Refraction",
                 false),
-            std::make_unique<juce::AudioParameterChoice> ("refractMode", "Refraction Mode",
-                refractModeNames(), 0),
+            std::make_unique<juce::AudioParameterBool> ("refractUnison", "Refraction Unison",
+                true),
+            std::make_unique<juce::AudioParameterBool> ("refractHarmonizer", "Refraction Harmonizer",
+                false),
+            std::make_unique<juce::AudioParameterBool> ("refractBandpass", "Refraction Bandpass",
+                false),
+            std::make_unique<juce::AudioParameterBool> ("refractDistort", "Refraction Distortion",
+                false),
+            std::make_unique<juce::AudioParameterBool> ("refractBitcrush", "Refraction Bitcrusher",
+                false),
+            std::make_unique<juce::AudioParameterBool> ("refractComb", "Refraction Comb",
+                false),
             std::make_unique<juce::AudioParameterInt> ("refractVoices", "Refraction Voices",
                 2, 8, 4),
             std::make_unique<juce::AudioParameterFloat> ("refractAmount", "Refraction Amount",
@@ -171,7 +177,12 @@ void SympathyAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     sympathy::RefractParams rp;
     rp.on       = param ("refractOn") > 0.5f;
-    rp.mode     = juce::roundToInt (param ("refractMode"));
+    rp.unison     = param ("refractUnison") > 0.5f;
+    rp.harmonizer = param ("refractHarmonizer") > 0.5f;
+    rp.bandpass   = param ("refractBandpass") > 0.5f;
+    rp.distort    = param ("refractDistort") > 0.5f;
+    rp.bitcrush   = param ("refractBitcrush") > 0.5f;
+    rp.comb       = param ("refractComb") > 0.5f;
     rp.voices   = juce::roundToInt (param ("refractVoices"));
     rp.amount   = param ("refractAmount");
     rp.mix      = param ("refractMix");
