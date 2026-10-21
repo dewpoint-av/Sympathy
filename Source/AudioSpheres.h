@@ -77,7 +77,7 @@ public:
             window[static_cast<size_t> (i)] = 0.5f * (1.0f - std::cos (2.0f * kSpherePi * i / (fftSize - 1)));
         fftBuf.assign (fftSize * 2, 0.0f);
         bins.fill (0.0f);
-        startTimerHz (30);
+        startTimerHz (20);
     }
 
     ~SpectrumSphere() override { stopTimer(); }
@@ -142,7 +142,7 @@ public:
         fftBuf.assign (fftSize * 2, 0.0f);
 
         image = juce::Image (juce::Image::RGB, kNumBins, kHistory, true);
-        startTimerHz (30);
+        startTimerHz (20);
     }
 
     ~SpectrogramSphere() override { stopTimer(); }

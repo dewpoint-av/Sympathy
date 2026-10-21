@@ -101,7 +101,10 @@ namespace sympathy
     };
 
     // -----------------------------------------------------------------------
-    // A tiny linear-interpolating circular fractional delay (used by strings).
+    // A circular fractional delay using first-order allpass interpolation.
+    // The allpass is flat in magnitude, so unlike linear interpolation it does
+    // not dull the strings (the intentional `damp` lowpass is the only HF loss),
+    // while its DC group delay matches `frac`, keeping the fundamental in tune.
     // -----------------------------------------------------------------------
     class FractionalDelay
     {
@@ -111,12 +114,14 @@ namespace sympathy
             buffer.assign (static_cast<size_t> (maxSamples), 0.0f);
             maxLength = maxSamples;
             writePos  = 0;
+            z         = 0.0f;
         }
 
         void reset()
         {
             std::fill (buffer.begin(), buffer.end(), 0.0f);
             writePos = 0;
+            z        = 0.0f;
         }
 
         float process (float x, float delaySamples)
@@ -128,18 +133,25 @@ namespace sympathy
             if (readPos < 0.0f)
                 readPos += static_cast<float> (maxLength);
 
-            const int i0    = static_cast<int> (readPos);
+            const int i0     = static_cast<int> (readPos);
             const float frac = readPos - static_cast<float> (i0);
-            const int i1    = (i0 + 1) % maxLength;
+            const int i1     = (i0 + 1) % maxLength;
 
-            return buffer[static_cast<size_t> (i0)] * (1.0f - frac)
-                 + buffer[static_cast<size_t> (i1)] * frac;
+            // First-order allpass H(z) = (a + z^-1) / (1 + a z^-1) with
+            // a = (1-frac)/(1+frac): group delay `frac` samples at DC, |a|<=1.
+            const float a  = (1.0f - frac) / (1.0f + frac);
+            const float x0 = buffer[static_cast<size_t> (i0)];   // integer tap
+            const float x1 = buffer[static_cast<size_t> (i1)];   // one sample older
+            const float y  = a * x0 + x1 - a * z;
+            z = y;
+            return y;
         }
 
     private:
         std::vector<float> buffer;
         int maxLength = 1;
         int writePos  = 0;
+        float z = 0.0f;
     };
 
     // -----------------------------------------------------------------------

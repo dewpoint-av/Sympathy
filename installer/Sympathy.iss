@@ -3,7 +3,7 @@
 ; locations. Run build.bat first so build\dist\ is populated.
 
 #define MyAppName "Sympathy"
-#define MyAppVersion "1.2.1"
+#define MyAppVersion "1.2.2"
 #define MyAppPublisher "Dewpoint AV"
 #define MyAppURL "https://dewpoint.live"
 
