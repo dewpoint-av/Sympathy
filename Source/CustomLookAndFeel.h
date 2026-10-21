@@ -51,6 +51,8 @@ public:
         const float cx = static_cast<float> (x) + width  * 0.5f;
         const float cy = static_cast<float> (y) + height * 0.5f;
         const float radius = juce::jmin (static_cast<float> (width), static_cast<float> (height)) * 0.5f - 4.0f;
+        if (radius <= 1.0f)
+            return;
         const float valueAngle = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
         const bool  hover = slider.isMouseOverOrDragging();
 
@@ -67,7 +69,7 @@ public:
         g.drawEllipse (cx - radius, cy - radius, radius * 2.0f, radius * 2.0f, 2.0f);
 
         // Tick marks around the dial.
-        const int numTicks = 24;
+        const int numTicks = 12;
         for (int i = 0; i <= numTicks; ++i)
         {
             const float ang = rotaryStartAngle + (static_cast<float> (i) / numTicks) * (rotaryEndAngle - rotaryStartAngle);
@@ -76,14 +78,10 @@ public:
                         cx + (radius + 6.5f) * std::sin (ang), cy - (radius + 6.5f) * std::cos (ang), 1.0f);
         }
 
-        // Value arc: thick iridescent gradient (blue -> purple -> red) + glow.
-        juce::Path arc;
-        arc.addCentredArc (cx, cy, radius, radius, 0.0f, rotaryStartAngle, valueAngle, true);
-
         // Draw the value arc as short coloured segments — avoids stroked-path
         // construction and gradient fills, which are fragile on Windows.
         const float sweep = valueAngle - rotaryStartAngle;
-        const int segs = juce::jmax (1, juce::roundToInt (std::fabs (sweep) / 0.16f));
+        const int segs = juce::jmax (1, juce::roundToInt (std::fabs (sweep) / 0.24f));
         for (int s = 0; s < segs; ++s)
         {
             const float t0 = static_cast<float> (s) / segs;
@@ -110,8 +108,7 @@ public:
         g.drawLine (cx, cy, cx + radius * nx, cy + radius * ny, 1.8f);
 
         // Center "lens" (covers the needle's origin).
-        juce::ColourGradient lens (background.brighter (0.22f), cx, cy, background, cx + radius * 0.40f, cy + radius * 0.40f, true);
-        g.setGradientFill (lens);
+        g.setColour (background.brighter (0.22f));
         g.fillEllipse (cx - radius * 0.40f, cy - radius * 0.40f, radius * 0.80f, radius * 0.80f);
 
         // Bright cap at the needle tip + centre dot.
