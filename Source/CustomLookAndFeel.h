@@ -43,36 +43,74 @@ public:
     static inline const juce::Colour text       { 0xffe6eaf2 };
     static inline const juce::Colour muted      { 0xff7d8496 };
 
-    // --- rotary knobs (neon arc + glow) ------------------------------------
+    // --- rotary knobs (holographic iridescent dial) -------------------------
     void drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height,
                            float sliderPos, float rotaryStartAngle, float rotaryEndAngle,
                            juce::Slider& slider) override
     {
         const float cx = static_cast<float> (x) + width  * 0.5f;
         const float cy = static_cast<float> (y) + height * 0.5f;
-        const float radius = juce::jmin (static_cast<float> (width), static_cast<float> (height)) * 0.5f - 3.0f;
+        const float radius = juce::jmin (static_cast<float> (width), static_cast<float> (height)) * 0.5f - 4.0f;
         const float valueAngle = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
+        const bool  hover = slider.isMouseOverOrDragging();
 
-        // Track ring
+        const juce::Colour blue   (0xff6ea8fe);
+        const juce::Colour purple (0xff8b5cf6);
+        const juce::Colour red    (0xffff2a2a);
+
+        // Soft outer glow ring.
+        g.setColour (accent.withAlpha (hover ? 0.24f : 0.12f));
+        g.drawEllipse (cx - radius - 3.0f, cy - radius - 3.0f, (radius + 3.0f) * 2.0f, (radius + 3.0f) * 2.0f, 3.5f);
+
+        // Track ring.
         g.setColour (track);
-        g.drawEllipse (cx - radius, cy - radius, radius * 2.0f, radius * 2.0f, 2.5f);
+        g.drawEllipse (cx - radius, cy - radius, radius * 2.0f, radius * 2.0f, 2.0f);
 
-        // Neon glow + core arc
+        // Tick marks around the dial.
+        const int numTicks = 24;
+        for (int i = 0; i <= numTicks; ++i)
+        {
+            const float ang = rotaryStartAngle + (static_cast<float> (i) / numTicks) * (rotaryEndAngle - rotaryStartAngle);
+            g.setColour (muted.withAlpha (0.5f));
+            g.drawLine (cx + (radius + 3.5f) * std::cos (ang), cy + (radius + 3.5f) * std::sin (ang),
+                        cx + (radius + 6.5f) * std::cos (ang), cy + (radius + 6.5f) * std::sin (ang), 1.0f);
+        }
+
+        // Value arc: thick iridescent gradient (blue -> purple -> red) + glow.
         juce::Path arc;
         arc.addCentredArc (cx, cy, radius, radius, 0.0f, rotaryStartAngle, valueAngle, true);
+
+        juce::Path glowArc, coreArc;
+        juce::PathStrokeType (8.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded).createStrokedPath (glowArc, arc);
+        juce::PathStrokeType (3.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded).createStrokedPath (coreArc, arc);
+
         g.setColour (accent.withAlpha (0.28f));
-        g.strokePath (arc, juce::PathStrokeType (7.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-        g.setColour (slider.isMouseOverOrDragging() ? juce::Colours::white : accent);
-        g.strokePath (arc, juce::PathStrokeType (2.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        g.fillPath (glowArc);
 
-        // Pointer
-        g.setColour (accent);
-        juce::Line<float> pointer (cx, cy,
-                                   cx + radius * 0.85f * std::cos (valueAngle),
-                                   cy + radius * 0.85f * std::sin (valueAngle));
-        g.drawLine (pointer, 2.0f);
+        juce::ColourGradient grad (blue, cx - radius, cy, red, cx + radius, cy, false);
+        grad.addColour (0.5, purple);
+        g.setGradientFill (grad);
+        g.fillPath (coreArc);
 
-        // Centre dot
+        // Glowing needle.
+        const float nx = std::cos (valueAngle);
+        const float ny = std::sin (valueAngle);
+        g.setColour (accent.withAlpha (0.45f));
+        g.drawLine (cx, cy, cx + radius * nx, cy + radius * ny, 5.0f);
+        g.setColour (juce::Colours::white.withAlpha (0.95f));
+        g.drawLine (cx, cy, cx + radius * nx, cy + radius * ny, 1.8f);
+
+        // Center "lens" (covers the needle's origin).
+        juce::ColourGradient lens (background.brighter (0.22f), cx, cy, background, cx + radius * 0.40f, cy + radius * 0.40f, true);
+        g.setGradientFill (lens);
+        g.fillEllipse (cx - radius * 0.40f, cy - radius * 0.40f, radius * 0.80f, radius * 0.80f);
+
+        // Bright cap at the needle tip + centre dot.
+        g.setColour (accent.withAlpha (0.35f));
+        g.fillEllipse (cx + radius * nx - 5.0f, cy + radius * ny - 5.0f, 10.0f, 10.0f);
+        g.setColour (juce::Colours::white);
+        g.fillEllipse (cx + radius * nx - 3.0f, cy + radius * ny - 3.0f, 6.0f, 6.0f);
+
         g.setColour (accent);
         g.fillEllipse (cx - 2.0f, cy - 2.0f, 4.0f, 4.0f);
     }
