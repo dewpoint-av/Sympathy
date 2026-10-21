@@ -45,7 +45,7 @@ namespace
             fftBuf[static_cast<size_t> (i)] = audio[static_cast<size_t> (idx)] * window[static_cast<size_t> (i)];
         }
 
-        fft.performRealOnlyForwardTransform (fftBuf.data(), false);
+        fft.performRealOnlyForwardTransform (fftBuf.data(), true);
 
         const float norm = 1.0f / (static_cast<float> (N) * 0.25f);
         for (int b = 0; b < numBins; ++b)
@@ -75,7 +75,7 @@ public:
         window.assign (fftSize, 0.0f);
         for (int i = 0; i < fftSize; ++i)
             window[static_cast<size_t> (i)] = 0.5f * (1.0f - std::cos (2.0f * kSpherePi * i / (fftSize - 1)));
-        fftBuf.assign (fftSize, 0.0f);
+        fftBuf.assign (fftSize * 2, 0.0f);
         bins.fill (0.0f);
         startTimerHz (30);
     }
@@ -139,7 +139,7 @@ public:
         window.assign (fftSize, 0.0f);
         for (int i = 0; i < fftSize; ++i)
             window[static_cast<size_t> (i)] = 0.5f * (1.0f - std::cos (2.0f * kSpherePi * i / (fftSize - 1)));
-        fftBuf.assign (fftSize, 0.0f);
+        fftBuf.assign (fftSize * 2, 0.0f);
 
         image = juce::Image (juce::Image::RGB, kNumBins, kHistory, true);
         startTimerHz (30);
