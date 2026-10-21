@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -544,6 +544,9 @@ public:
 
             This is useful to ensure that a particular item is shown when the menu
             contains too many items to display on a single screen.
+
+            The specified item will be positioned at the target screen area of the
+            menu if possible.
         */
         [[nodiscard]] Options withItemThatMustBeVisible (int idOfItemToBeVisible) const;
 
@@ -859,7 +862,12 @@ public:
 
             If isTriggeredAutomatically is true, then the menu will automatically detect
             a mouse-click on this component and use that to invoke the menu item. If it's
-            false, then it's up to your class to manually trigger the item when it wants to.
+            false, then it's up to your class to manually trigger the item when it wants
+            to. In that case, while the item is highlighted, key presses received by the
+            menu are passed to your component's keyPressed() method first, so that it can
+            call triggerMenuItem() in response to the keyboard too. Returning true from
+            keyPressed() stops the menu from handling that key itself, so only consume the
+            keys your component acts on.
 
             If isTriggeredAutomatically is true, then an accessibility handler 'wrapper'
             will be created for the item that allows pressing, focusing, and toggling.
@@ -1050,10 +1058,10 @@ public:
     };
 
     //==============================================================================
-   #ifndef DOXYGEN
+    /** @cond */
     [[deprecated ("Use the new method.")]]
     int drawPopupMenuItem (Graphics&, int, int, bool, bool, bool, bool, bool, const String&, const String&, Image*, const Colour*) { return 0; }
-   #endif
+    /** @endcond */
 
 private:
     //==============================================================================

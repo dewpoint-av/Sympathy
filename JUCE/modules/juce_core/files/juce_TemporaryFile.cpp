@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -99,7 +99,7 @@ bool TemporaryFile::overwriteTargetFileWithTemporary() const
 
     if (temporaryFile.exists())
     {
-        // Have a few attempts at overwriting the file before giving up..
+        // Have a few attempts at overwriting the file before giving up.
         for (int i = 5; --i >= 0;)
         {
             if (temporaryFile.replaceFileIn (targetFile))
@@ -120,7 +120,7 @@ bool TemporaryFile::overwriteTargetFileWithTemporary() const
 
 bool TemporaryFile::deleteTemporaryFile() const
 {
-    // Have a few attempts at deleting the file before giving up..
+    // Have a few attempts at deleting the file before giving up.
     for (int i = 5; --i >= 0;)
     {
         if (temporaryFile.isDirectory() ? temporaryFile.deleteRecursively() : temporaryFile.deleteFile())

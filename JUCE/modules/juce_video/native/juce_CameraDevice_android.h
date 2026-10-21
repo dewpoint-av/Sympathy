@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -490,8 +490,7 @@ private:
 };
 
 //==============================================================================
-struct CameraDevice::Pimpl
-    : private ActivityLifecycleCallbacks
+struct CameraDevice::Pimpl : private ActivityLifecycleCallbacks
 {
     using InternalOpenCameraResultCallback = std::function<void (const String& /*cameraId*/, const String& /*error*/)>;
 
@@ -504,7 +503,6 @@ struct CameraDevice::Pimpl
           maxWidth (maxWidthToUse),
           maxHeight (maxHeightToUse),
           cameraId (cameraIdToUse),
-          activityLifeListener (CreateJavaInterface (this, "android/app/Application$ActivityLifecycleCallbacks")),
           cameraManager (initialiseCameraManager()),
           cameraCharacteristics (initialiseCameraCharacteristics (cameraManager, cameraId)),
           streamConfigurationMap (cameraCharacteristics),
@@ -516,10 +514,7 @@ struct CameraDevice::Pimpl
 
     ~Pimpl() override
     {
-        auto* env = getEnv();
-
-        env->CallVoidMethod (getAppContext().get(), AndroidApplication.unregisterActivityLifecycleCallbacks, activityLifeListener.get());
-        activityLifeListener.clear();
+        callbackForwarder.reset();
     }
 
     JUCE_DECLARE_WEAK_REFERENCEABLE (Pimpl)
@@ -551,7 +546,7 @@ struct CameraDevice::Pimpl
     {
         if (granted)
         {
-            getEnv()->CallVoidMethod (getAppContext().get(), AndroidApplication.registerActivityLifecycleCallbacks, activityLifeListener.get());
+            callbackForwarder.emplace (GlobalRef { getAppContext() }, static_cast<ActivityLifecycleCallbacks*> (this));
             scopedCameraDevice.reset (new ScopedCameraDevice (*this, cameraId, cameraManager, handler, getAutoFocusModeToUse()));
         }
         else
@@ -1234,7 +1229,7 @@ private:
 
             auto bufferSize = env->CallIntMethod (imagePlaneBuffer, JavaByteBuffer.remaining);
             auto byteArray = LocalRef<jbyteArray> (env->NewByteArray (bufferSize));
-            env->CallObjectMethod (imagePlaneBuffer, JavaByteBuffer.get, byteArray.get());
+            LocalRef { env->CallObjectMethod (imagePlaneBuffer, JavaByteBuffer.get, byteArray.get()) };
 
             auto rotationAngle = getRotationAngle (deviceOrientationFromAccelerometerSensor, targetOrientation,
                                                   cameraLensFrontFacing, cameraSensorOrientation);
@@ -1717,7 +1712,7 @@ private:
                    CALLBACK (generatedCallback<&StillPictureTaker::cameraCaptureSessionCaptureSequenceAbortedCallback>,   "cameraCaptureSessionCaptureSequenceAborted",   "(JZLandroid/hardware/camera2/CameraCaptureSession;I)V") \
                    CALLBACK (generatedCallback<&StillPictureTaker::cameraCaptureSessionCaptureSequenceCompletedCallback>, "cameraCaptureSessionCaptureSequenceCompleted", "(JZLandroid/hardware/camera2/CameraCaptureSession;IJ)V")
 
-                DECLARE_JNI_CLASS_WITH_BYTECODE (CameraCaptureSessionCaptureCallback, "com/rmsl/juce/CameraCaptureSessionCaptureCallback", 21, CameraSupportByteCode)
+                DECLARE_JNI_CLASS_WITH_BYTECODE (CameraCaptureSessionCaptureCallback, "com/rmsl/juce/CameraCaptureSessionCaptureCallback", 24, CameraSupportByteCode)
                 #undef JNI_CLASS_MEMBERS
 
                 LocalRef<jobject> createCaptureSessionCallback (bool createPreviewSession)
@@ -2809,7 +2804,7 @@ private:
     String cameraId;
     InternalOpenCameraResultCallback cameraOpenCallback;
 
-    GlobalRef activityLifeListener;
+    std::optional<ActivityLifecycleCallbackForwarder> callbackForwarder;
 
     GlobalRef cameraManager;
     GlobalRef cameraCharacteristics;
@@ -3083,7 +3078,7 @@ private:
         env->CallVoidMethod (handlerThread, AndroidHandlerThread.start);
         handler = GlobalRef (LocalRef<jobject> (env->NewObject (AndroidHandler,
                                                                 AndroidHandler.constructorWithLooper,
-                                                                env->CallObjectMethod (handlerThread, AndroidHandlerThread.getLooper))));
+                                                                LocalRef { env->CallObjectMethod (handlerThread, AndroidHandlerThread.getLooper) }.get())));
     }
 
     void stopBackgroundThread()

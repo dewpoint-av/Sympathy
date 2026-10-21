@@ -291,7 +291,7 @@ namespace
     public:
         explicit RefractVisualizer (juce::AudioProcessorValueTreeState& st) : state (st)
         {
-            startTimerHz (30);
+            startTimerHz (20);
         }
 
         ~RefractVisualizer() override { stopTimer(); }

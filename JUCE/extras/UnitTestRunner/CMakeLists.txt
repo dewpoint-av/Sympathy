@@ -15,7 +15,7 @@
 #  framework to you, and you must discontinue the installation or download
 #  process and cease use of the JUCE framework.
 #
-#  JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+#  JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
 #  JUCE Privacy Policy: https://juce.com/juce-privacy-policy
 #  JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 #
@@ -30,13 +30,16 @@
 #
 # ==============================================================================
 
-juce_add_console_app(UnitTestRunner)
+juce_add_console_app(UnitTestRunner
+    NEEDS_WEB_BROWSER FALSE
+    NEEDS_CURL FALSE)
 
 juce_generate_juce_header(UnitTestRunner)
 
 target_sources(UnitTestRunner PRIVATE Source/Main.cpp)
 
 target_compile_definitions(UnitTestRunner PRIVATE
+    JUCE_PLUGINHOST_AU=1
     JUCE_PLUGINHOST_LV2=1
     JUCE_PLUGINHOST_VST3=1
     JUCE_UNIT_TESTS=1
@@ -50,6 +53,7 @@ target_compile_definitions(UnitTestRunner PRIVATE
 target_link_libraries(UnitTestRunner PRIVATE
     juce::juce_analytics
     juce::juce_audio_utils
+    juce::juce_build_tools
     juce::juce_dsp
     juce::juce_midi_ci
     juce::juce_opengl

@@ -81,7 +81,7 @@ public:
         // Draw the value arc as short coloured segments — avoids stroked-path
         // construction and gradient fills, which are fragile on Windows.
         const float sweep = valueAngle - rotaryStartAngle;
-        const int segs = juce::jmax (1, juce::roundToInt (std::fabs (sweep) / 0.24f));
+        const int segs = juce::jmax (1, juce::roundToInt (std::fabs (sweep) / 0.45f));
         for (int s = 0; s < segs; ++s)
         {
             const float t0 = static_cast<float> (s) / segs;
@@ -94,9 +94,9 @@ public:
             seg.addCentredArc (cx, cy, radius, radius, 0.0f,
                                rotaryStartAngle + sweep * t0, rotaryStartAngle + sweep * t1, true);
             g.setColour (c.withAlpha (0.28f));
-            g.strokePath (seg, juce::PathStrokeType (7.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            g.strokePath (seg, juce::PathStrokeType (7.0f, juce::PathStrokeType::beveled, juce::PathStrokeType::butt));
             g.setColour (c);
-            g.strokePath (seg, juce::PathStrokeType (3.2f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            g.strokePath (seg, juce::PathStrokeType (3.2f, juce::PathStrokeType::beveled, juce::PathStrokeType::butt));
         }
 
         // Glowing needle.

@@ -143,10 +143,6 @@ private:
 
             setContentOwned (new MainComponent(), false);
             setVisible (true);
-
-           #if JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX || JUCE_BSD
-            taskbarIcon.reset (new DemoTaskbarComponent());
-           #endif
         }
 
         void closeButtonPressed() override    { JUCEApplication::getInstance()->systemRequestedQuit(); }
@@ -154,7 +150,8 @@ private:
        #if JUCE_IOS || JUCE_ANDROID
         void parentSizeChanged() override
         {
-            getMainComponent().resized();
+            if (auto* comp = getContentComponent())
+                comp->resized();
         }
        #endif
 
@@ -162,7 +159,9 @@ private:
         MainComponent& getMainComponent()    { return *dynamic_cast<MainComponent*> (getContentComponent()); }
 
     private:
-        std::unique_ptr<Component> taskbarIcon;
+       #if JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX || JUCE_BSD
+        std::unique_ptr<Component> taskbarIcon = std::make_unique<DemoTaskbarComponent>();
+       #endif
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainAppWindow)
     };

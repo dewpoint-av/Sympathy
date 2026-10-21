@@ -35,7 +35,8 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics
- exporters:        xcode_mac, vs2022, linux_make, androidstudio, xcode_iphone
+ exporters:        xcode_mac, vs2022, vs2026, linux_make, androidstudio,
+                   xcode_iphone
 
  moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
@@ -530,6 +531,7 @@ class LookAndFeelDemo final : public Component
 public:
     LookAndFeelDemo()
     {
+        setName ("LookAndFeel demo");
         descriptionLabel.setMinimumHorizontalScale (1.0f);
         descriptionLabel.setText ("This demonstrates how to create a custom look and feel by overriding only the desired methods.\n\n"
                                   "Components can have their look and feel individually assigned or they will inherit it from their parent. "

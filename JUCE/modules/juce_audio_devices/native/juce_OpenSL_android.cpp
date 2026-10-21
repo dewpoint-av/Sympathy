@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -800,11 +800,11 @@ public:
     OpenSLAudioIODevice (const String& deviceName)  : AudioIODevice (deviceName, openSLTypeName)
     {
         // OpenSL has piss-poor support for determining latency, so the only way I can find to
-        // get a number for this is by asking the AudioTrack/AudioRecord classes..
+        // get a number for this is by asking the AudioTrack/AudioRecord classes.
         AndroidAudioIODevice javaDevice (deviceName);
 
         // this is a total guess about how to calculate the latency, but seems to vaguely agree
-        // with the devices I've tested.. YMMV
+        // with the devices I've tested. YMMV
         inputLatency  = (javaDevice.minBufferSizeIn  * 2) / 3;
         outputLatency = (javaDevice.minBufferSizeOut * 2) / 3;
 

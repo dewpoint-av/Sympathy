@@ -20,8 +20,10 @@ inline juce::Font monumentFont (float height, bool bold = true)
     return juce::Font (monumentTypeface (bold)).withHeight (height);
 }
 
-// An animated, holographic title rendered in Monument Extended. The text is
-// filled with a slowly shifting iridescent gradient plus a soft glow.
+// An animated, holographic title rendered in Monument Extended. The glyph
+// outline is laid out once and cached; only the gradient colours animate.
+// This keeps the per-frame Direct2D work minimal (important on Windows, where
+// JUCE 8 renders through Direct2D).
 class HoloTitle : public juce::Component,
                   private juce::Timer
 {
@@ -29,30 +31,28 @@ public:
     HoloTitle (const juce::String& titleText, float height, bool useBold = true)
         : text (titleText), fontHeight (height), bold (useBold)
     {
-        startTimerHz (30);
+        startTimerHz (15);
     }
 
     ~HoloTitle() override { stopTimer(); }
 
     void timerCallback() override
     {
-        phase += 0.006f;
+        phase += 0.012f;
         if (phase > 1.0f)
             phase -= 1.0f;
         repaint();
     }
 
+    void resized() override { rebuildPath(); }
+
     void paint (juce::Graphics& g) override
     {
         const auto b = getLocalBounds().toFloat();
-
-        juce::GlyphArrangement glyphs;
-        glyphs.addFittedText (monumentFont (fontHeight, bold), text,
-                              b.getX(), b.getY(), b.getWidth(), b.getHeight(),
-                              juce::Justification::centred, 1, 0.9f);
-
-        juce::Path p;
-        glyphs.createPath (p);
+        if (glyphPath.isEmpty())
+            rebuildPath();
+        if (glyphPath.isEmpty())
+            return;
 
         // Website palette: blue -> purple -> red (no green / cyan).
         const auto palette = [] (float p)
@@ -70,16 +70,31 @@ public:
         // Soft pulsing glow.
         const float glowAlpha = 0.22f + 0.14f * (0.5f + 0.5f * std::sin (phase * 6.2831853f));
         g.setColour (a.withAlpha (glowAlpha));
-        g.strokePath (p, juce::PathStrokeType (7.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        g.strokePath (glyphPath, juce::PathStrokeType (7.0f, juce::PathStrokeType::beveled, juce::PathStrokeType::butt));
 
         // Iridescent gradient fill.
         g.setGradientFill (juce::ColourGradient (a, b.getX(), b.getY(), c, b.getRight(), b.getBottom(), false));
-        g.fillPath (p);
+        g.fillPath (glyphPath);
     }
 
 private:
+    void rebuildPath()
+    {
+        const auto b = getLocalBounds().toFloat();
+        if (b.getWidth() <= 0.0f || b.getHeight() <= 0.0f)
+            return;
+
+        juce::GlyphArrangement glyphs;
+        glyphs.addFittedText (monumentFont (fontHeight, bold), text,
+                              b.getX(), b.getY(), b.getWidth(), b.getHeight(),
+                              juce::Justification::centred, 1, 0.9f);
+        glyphPath.clear();   // createPath() appends, so clear first to avoid stacking glyphs
+        glyphs.createPath (glyphPath);
+    }
+
     juce::String text;
     float fontHeight;
     bool bold;
     float phase = 0.0f;
+    juce::Path glyphPath;
 };

@@ -35,7 +35,7 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2022, xcode_iphone
+ exporters:        xcode_mac, vs2022, vs2026, xcode_iphone
 
  moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
@@ -62,6 +62,7 @@ public:
     //==============================================================================
     AnimationAppDemo()
     {
+        setName ("Animation app demo");
         setSize (800, 600);
         setSynchroniseToVBlank (true);
     }

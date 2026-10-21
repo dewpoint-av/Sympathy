@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -316,7 +316,7 @@ void EdgeTable::clearLineSizes() noexcept
 
 void EdgeTable::sanitiseLevels (const bool useNonZeroWinding) noexcept
 {
-    // Convert the table from relative windings to absolute levels..
+    // convert the table from relative windings to absolute levels
     int* lineStart = table.data();
 
     for (int y = bounds.getHeight(); --y >= 0;)

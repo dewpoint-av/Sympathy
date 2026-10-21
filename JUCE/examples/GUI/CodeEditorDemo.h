@@ -35,7 +35,7 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2022, linux_make, xcode_iphone
+ exporters:        xcode_mac, vs2022, vs2026, linux_make, xcode_iphone
 
  moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
@@ -63,6 +63,7 @@ class CodeEditorDemo final : public Component,
 public:
     CodeEditorDemo()
     {
+        setName ("Code-editor demo");
         setOpaque (true);
 
         // Create the editor..

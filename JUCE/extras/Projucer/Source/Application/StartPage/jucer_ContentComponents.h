@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -81,10 +81,7 @@ public:
 private:
     static std::unique_ptr<Drawable> makeIcon (const char* iconSvgData)
     {
-        if (auto svg = XmlDocument::parse (iconSvgData))
-            return Drawable::createFromSVG (*svg);
-
-        return {};
+        return Drawable::createFromSVGString (iconSvgData);
     }
 
     Label nameLabel, descriptionLabel;
@@ -179,7 +176,7 @@ private:
 
     ValueTreePropertyWithDefault projectNameValue { settingsTree, Ids::name,          nullptr, "NewProject" },
                                  modulesValue     { settingsTree, Ids::dependencies_, nullptr, projectTemplate.requiredModules, "," },
-                                 exportersValue   { settingsTree, Ids::exporters,     nullptr, StringArray (ProjectExporter::getCurrentPlatformExporterTypeInfo().identifier.toString()), "," },
+                                 exportersValue   { settingsTree, Ids::exporters,     nullptr, StringArray { ProjectExporter::getBestPlatformExporterIdentifier() }, "," },
                                  fileOptionsValue { settingsTree, Ids::file,          nullptr, NewProjectTemplates::getVarForFileOption (projectTemplate.defaultFileOption) };
 
     ValueTreePropertyWithDefaultWrapper modulePathValue;

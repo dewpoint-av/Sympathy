@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -58,12 +58,12 @@ namespace juce
             out->write ( ...etc )
             out.reset(); // (deletes the stream)
 
-            // ..now we've finished writing, this will rename the temp file to
-            // make it replace the target file we specified above.
+            // ...now we've finished writing, this will rename the temp file to
+            // make it replace the target file we specified above
             bool succeeded = temp.overwriteTargetFileWithTemporary();
         }
 
-        // ..and even if something went wrong and our overwrite failed,
+        // ...and even if something went wrong and our overwrite failed,
         // as the TemporaryFile object goes out of scope here, it'll make sure
         // that the temp file gets deleted.
     }

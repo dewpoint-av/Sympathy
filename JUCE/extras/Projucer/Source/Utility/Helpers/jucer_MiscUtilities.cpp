@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -62,6 +62,7 @@ String getLineFeedForFile (const String& fileContent)
             case 0:     break;
             case '\n':  return "\n";
             case '\r':  if (*t == '\n') return "\r\n";
+                        [[fallthrough]];
             default:    continue;
         }
     }
@@ -279,6 +280,7 @@ StringArray getJUCEModules() noexcept
         "juce_audio_formats",
         "juce_audio_plugin_client",
         "juce_audio_processors",
+        "juce_audio_processors_headless",
         "juce_audio_utils",
         "juce_box2d",
         "juce_core",
@@ -336,6 +338,7 @@ StringArray getModulesRequiredForAudioProcessor() noexcept
         "juce_audio_formats",
         "juce_audio_plugin_client",
         "juce_audio_processors",
+        "juce_audio_processors_headless",
         "juce_audio_utils",
         "juce_core",
         "juce_data_structures",

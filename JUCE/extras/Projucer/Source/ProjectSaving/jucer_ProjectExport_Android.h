@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -33,7 +33,6 @@
 */
 
 #pragma once
-
 
 //==============================================================================
 class AndroidProjectExporter final : public ProjectExporter
@@ -113,7 +112,8 @@ public:
                                  androidReadMediaVideoPermission, androidExternalWritePermission,
                                  androidInAppBillingPermission, androidVibratePermission, androidOtherPermissions, androidPushNotifications,
                                  androidEnableRemoteNotifications, androidRemoteNotificationsConfigFile, androidEnableContentSharing, androidKeyStore,
-                                 androidKeyStorePass, androidKeyAlias, androidKeyAliasPass, gradleVersion, gradleToolchain, gradleClangTidy, androidPluginVersion;
+                                 androidKeyStorePass, androidKeyAlias, androidKeyAliasPass, gradleVersion, gradleToolchain, gradleClangTidy, androidPluginVersion,
+                                 androidEnableVirtualMidi;
 
     //==============================================================================
     AndroidProjectExporter (Project& p, const ValueTree& t)
@@ -157,10 +157,11 @@ public:
           androidKeyStorePass                  (settings, Ids::androidKeyStorePass,                  getUndoManager(), "android"),
           androidKeyAlias                      (settings, Ids::androidKeyAlias,                      getUndoManager(), "androiddebugkey"),
           androidKeyAliasPass                  (settings, Ids::androidKeyAliasPass,                  getUndoManager(), "android"),
-          gradleVersion                        (settings, Ids::gradleVersion,                        getUndoManager(), "8.11.1"),
+          gradleVersion                        (settings, Ids::gradleVersion,                        getUndoManager(), "8.14.5"),
           gradleToolchain                      (settings, Ids::gradleToolchain,                      getUndoManager(), "clang"),
           gradleClangTidy                      (settings, Ids::gradleClangTidy,                      getUndoManager(), false),
-          androidPluginVersion                 (settings, Ids::androidPluginVersion,                 getUndoManager(), "8.10.0"),
+          androidPluginVersion                 (settings, Ids::androidPluginVersion,                 getUndoManager(), "8.13.2"),
+          androidEnableVirtualMidi             (settings, Ids::androidEnableVirtualMidi,             getUndoManager(), false),
           AndroidExecutable                    (getAppSettings().getStoredPath (Ids::androidStudioExePath, TargetOS::getThisOS()).get().toString())
     {
         name = getDisplayName();
@@ -235,6 +236,7 @@ public:
         {
             copyAdditionalJavaLibs (appFolder);
             writeStringsXML        (targetFolder);
+            writeDeviceInfoXML     (targetFolder);
             writeAppIcons          (targetFolder);
         }
 
@@ -651,6 +653,10 @@ private:
         MemoryOutputStream mo;
         mo.setNewLineString (getNewLineString());
 
+        mo << "plugins {" << newLine
+           << "    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'" << newLine
+           << "}" << newLine;
+
         mo << "rootProject.name = " << "\'" << escapeQuotes (projectName) << "\'" << newLine;
         mo << (isLibrary() ? "include ':lib'" : "include ':app'");
 
@@ -696,33 +702,35 @@ private:
 
         mo << "apply plugin: 'com.android." << (isLibrary() ? "library" : "application") << "'" << newLine << newLine;
 
+        // Language version 8 (or lower) is required for compatibility with Android 24
+        mo << "java.toolchain.languageVersion = JavaLanguageVersion.of(8)" << newLine;
         // NDK 26 is required for ANDROID_WEAK_API_DEFS, which is in turn required for weak-linking AFontMatcher
         mo << "def ndkVersionString = \"28.1.13356709\"" << newLine << newLine;
 
-        mo << "android {"                                                                    << newLine;
-        mo << "    compileSdk " << static_cast<int> (androidTargetSDK.get())                 << newLine;
-        mo << "    ndkVersion ndkVersionString"                                              << newLine;
-        mo << "    namespace " << project.getBundleIdentifierString().toLowerCase().quoted() << newLine;
-        mo << "    externalNativeBuild {"                                                    << newLine;
-        mo << "        cmake {"                                                              << newLine;
-        mo << "            path \"CMakeLists.txt\""                                          << newLine;
-        mo << "            version \"3.22.1\""                                               << newLine;
-        mo << "        }"                                                                    << newLine;
-        mo << "    }"                                                                        << newLine;
+        mo << "android {"                                                                      << newLine;
+        mo << "    compileSdk(" << static_cast<int> (androidTargetSDK.get()) << ')'            << newLine;
+        mo << "    ndkVersion = ndkVersionString"                                              << newLine;
+        mo << "    namespace = " << project.getBundleIdentifierString().toLowerCase().quoted() << newLine;
+        mo << "    externalNativeBuild {"                                                      << newLine;
+        mo << "        cmake {"                                                                << newLine;
+        mo << "            path(\"CMakeLists.txt\")"                                           << newLine;
+        mo << "            version = \"3.22.1\""                                               << newLine;
+        mo << "        }"                                                                      << newLine;
+        mo << "    }"                                                                          << newLine;
 
-        mo << getAndroidSigningConfig()                                                      << newLine;
-        mo << getAndroidDefaultConfig()                                                      << newLine;
-        mo << getAndroidBuildTypes()                                                         << newLine;
-        mo << getAndroidProductFlavours()                                                    << newLine;
-        mo << getAndroidVariantFilter()                                                      << newLine;
+        mo << getAndroidSigningConfig()                                                        << newLine;
+        mo << getAndroidDefaultConfig()                                                        << newLine;
+        mo << getAndroidBuildTypes()                                                           << newLine;
+        mo << getAndroidProductFlavours()                                                      << newLine;
+        mo << getAndroidVariantFilter()                                                        << newLine;
 
-        mo << getAndroidJavaSourceSets (modules)                                             << newLine;
-        mo << getAndroidRepositories()                                                       << newLine;
-        mo << getAndroidDependencies()                                                       << newLine;
-        mo << androidCustomAppBuildGradleContent.get().toString()                            << newLine;
-        mo << getApplyPlugins()                                                              << newLine;
+        mo << getAndroidJavaSourceSets (modules)                                               << newLine;
+        mo << getAndroidRepositories()                                                         << newLine;
+        mo << getAndroidDependencies()                                                         << newLine;
+        mo << androidCustomAppBuildGradleContent.get().toString()                              << newLine;
+        mo << getApplyPlugins()                                                                << newLine;
 
-        mo << "}"                                                                            << newLine << newLine;
+        mo << "}"                                                                              << newLine << newLine;
 
         return mo.toString();
     }
@@ -732,7 +740,7 @@ private:
         MemoryOutputStream mo;
         mo.setNewLineString (getNewLineString());
 
-        mo << "    flavorDimensions \"default\"" << newLine;
+        mo << "    flavorDimensions(\"default\")" << newLine;
         mo << "    productFlavors {" << newLine;
 
         for (ConstConfigIterator config (*this); config.next();)
@@ -744,7 +752,7 @@ private:
             if (cfg.getArchitectures().isNotEmpty())
             {
                 mo << "            ndk {" << newLine
-                   << "                abiFilters " << toGradleList (StringArray::fromTokens (cfg.getArchitectures(),  " ", "")) << newLine
+                   << "                abiFilters(" << toGradleList (StringArray::fromTokens (cfg.getArchitectures(),  " ", "")) << ')' << newLine
                    << "            }" << newLine;
             }
 
@@ -754,13 +762,13 @@ private:
             if (getProject().getProjectType().isStaticLibrary())
                 mo << "                    targets \"" << getNativeModuleBinaryName (cfg) << "\"" << newLine;
 
-            mo << "                    cFlags    \"-O" << cfg.getGCCOptimisationFlag() << "\""                                      << newLine
-               << "                    cppFlags  \"-O" << cfg.getGCCOptimisationFlag() << "\""                                      << newLine
-               << "                    arguments \"-DJUCE_BUILD_CONFIGURATION=" << cfg.getProductFlavourCMakeIdentifier() << "\""   << newLine
+            mo << "                    cFlags(\"-O" << cfg.getGCCOptimisationFlag() << "\")"                                        << newLine
+               << "                    cppFlags(\"-O" << cfg.getGCCOptimisationFlag() << "\")"                                      << newLine
+               << "                    arguments(\"-DJUCE_BUILD_CONFIGURATION=" << cfg.getProductFlavourCMakeIdentifier() << "\")"  << newLine
                << "                }"                                                                                               << newLine
                << "            }"                                                                                                   << newLine
                                                                                                                                     << newLine
-               << "            dimension \"default\""                                                                               << newLine
+               << "            dimension(\"default\")"                                                                              << newLine
                << "        }"                                                                                                       << newLine;
         }
 
@@ -777,15 +785,15 @@ private:
         auto keyStoreFilePath = androidKeyStore.get().toString().replace ("${user.home}", "${System.properties['user.home']}")
                                                                 .replace ("/", "${File.separator}");
 
-        mo << "    signingConfigs {"                                                         << newLine;
-        mo << "        juceSigning {"                                                        << newLine;
-        mo << "            storeFile     file(\"" << keyStoreFilePath << "\")"               << newLine;
-        mo << "            storePassword \"" << androidKeyStorePass.get().toString() << "\"" << newLine;
-        mo << "            keyAlias      \"" << androidKeyAlias.get().toString() << "\""     << newLine;
-        mo << "            keyPassword   \"" << androidKeyAliasPass.get().toString() << "\"" << newLine;
-        mo << "            storeType     \"jks\""                                            << newLine;
-        mo << "        }"                                                                    << newLine;
-        mo << "    }"                                                                        << newLine;
+        mo << "    signingConfigs {"                                                          << newLine;
+        mo << "        juceSigning {"                                                         << newLine;
+        mo << "            storeFile(file(\"" << keyStoreFilePath << "\"))"                   << newLine;
+        mo << "            storePassword(\"" << androidKeyStorePass.get().toString() << "\")" << newLine;
+        mo << "            keyAlias(\"" << androidKeyAlias.get().toString() << "\")"          << newLine;
+        mo << "            keyPassword(\"" << androidKeyAliasPass.get().toString() << "\")"   << newLine;
+        mo << "            storeType(\"jks\")"                                                << newLine;
+        mo << "        }"                                                                     << newLine;
+        mo << "    }"                                                                         << newLine;
 
         return mo.toString();
     }
@@ -800,22 +808,22 @@ private:
         MemoryOutputStream mo;
         mo.setNewLineString (getNewLineString());
 
-        mo << "    defaultConfig {"                                               << newLine;
+        mo << "    defaultConfig {"                                                  << newLine;
 
         if (! isLibrary())
-            mo << "        applicationId \"" << bundleIdentifier << "\""          << newLine;
+            mo << "        applicationId(\"" << bundleIdentifier << "\")"            << newLine;
 
-        mo << "        minSdkVersion    " << minSdkVersion                        << newLine;
-        mo << "        targetSdkVersion " << targetSdkVersion                     << newLine;
+        mo << "        minSdkVersion(" << minSdkVersion << ')'                       << newLine;
+        mo << "        targetSdkVersion(" << targetSdkVersion << ')'                 << newLine;
 
-        mo << "        externalNativeBuild {"                                     << newLine;
-        mo << "            cmake {"                                               << newLine;
+        mo << "        externalNativeBuild {"                                        << newLine;
+        mo << "            cmake {"                                                  << newLine;
 
-        mo << "                arguments " << cmakeDefs.joinIntoString (", ")     << newLine;
+        mo << "                arguments(" << cmakeDefs.joinIntoString (", ") << ')' << newLine;
 
-        mo << "            }"                                                     << newLine;
-        mo << "        }"                                                         << newLine;
-        mo << "    }"                                                             << newLine;
+        mo << "            }"                                                        << newLine;
+        mo << "        }"                                                            << newLine;
+        mo << "    }"                                                                << newLine;
 
         return mo.toString();
     }
@@ -838,11 +846,11 @@ private:
             if (numDebugConfigs > 1 || ((numConfigs - numDebugConfigs) > 1))
                 continue;
 
-            mo << "         " << (config->isDebug() ? "debug" : "release") << " {"      << newLine;
-            mo << "             initWith " << (config->isDebug() ? "debug" : "release") << newLine;
-            mo << "             debuggable    " << (config->isDebug() ? "true" : "false") << newLine;
-            mo << "             jniDebuggable " << (config->isDebug() ? "true" : "false") << newLine;
-            mo << "             signingConfig signingConfigs.juceSigning" << newLine;
+            mo << "         " << (config->isDebug() ? "debug" : "release") << " {" << newLine;
+            mo << "             initWith(" << (config->isDebug() ? "debug" : "release") << ')' << newLine;
+            mo << "             debuggable(" << (config->isDebug() ? "true" : "false") << ')' << newLine;
+            mo << "             jniDebuggable(" << (config->isDebug() ? "true" : "false") << ')' << newLine;
+            mo << "             signingConfig = signingConfigs.juceSigning" << newLine;
 
             mo << "         }" << newLine;
         }
@@ -856,20 +864,23 @@ private:
         MemoryOutputStream mo;
         mo.setNewLineString (getNewLineString());
 
-        mo << "    variantFilter { variant ->"            << newLine;
-        mo << "        def names = variant.flavors*.name" << newLine;
+        mo << "    androidComponents {" << newLine
+           << "        beforeVariants(selector().all(), { variant ->" << newLine
+           << "            variant.enabled = false" << newLine;
 
         for (ConstConfigIterator config (*this); config.next();)
         {
             auto& cfg = dynamic_cast<const AndroidBuildConfiguration&> (*config);
-
-            mo << "        if (names.contains (\"" << cfg.getProductFlavourNameIdentifier() << "\")"                  << newLine;
-            mo << "              && variant.buildType.name != \"" << (cfg.isDebug() ? "debug" : "release") << "\") {" << newLine;
-            mo << "            setIgnore(true)"                                                                       << newLine;
-            mo << "        }"                                                                                         << newLine;
+            mo << "            variant.enabled |= variant.productFlavors*.second.contains (\""
+               << cfg.getProductFlavourNameIdentifier()
+               << "\") && variant.buildType == \""
+               << (cfg.isDebug() ? "debug" : "release")
+               << '"'
+               << newLine;
         }
 
-        mo << "    }" << newLine;
+        mo << "        })" << newLine
+           << "    }" << newLine;
 
         return mo.toString();
     }
@@ -922,15 +933,20 @@ private:
             mo << "        " << d << newLine;
 
         for (auto& d : StringArray::fromLines (androidJavaLibs.get().toString()))
-            mo << "        implementation files('libs/" << File (d).getFileName() << "')" << newLine;
+            mo << "        implementation(files('libs/" << File (d).getFileName() << "'))" << newLine;
 
         if (isInAppBillingEnabled())
-            mo << "        implementation 'com.android.billingclient:billing:7.0.0'" << newLine;
+        {
+            mo << "        implementation('com.android.billingclient:billing:9.1.0') {" << newLine;
+            mo << "            exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'" << newLine;
+            mo << "            exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'" << newLine;
+            mo << "        }" << newLine;
+        }
 
         if (areRemoteNotificationsEnabled())
         {
-            mo << "        implementation 'com.google.firebase:firebase-core:16.0.1'" << newLine;
-            mo << "        implementation 'com.google.firebase:firebase-messaging:17.6.0'" << newLine;
+            mo << "        implementation('com.google.firebase:firebase-core:16.0.1')" << newLine;
+            mo << "        implementation('com.google.firebase:firebase-messaging:17.6.0')" << newLine;
         }
 
         mo << "    }" << newLine;
@@ -998,6 +1014,9 @@ private:
 
         if (isInAppBillingEnabled())
             addOptJavaFolderToSourceSetsForModule (javaSourceSets, modules, "juce_product_unlocking");
+
+        if (isVirtualMidiEnabled())
+            addOptJavaFolderToSourceSetsForModule (javaSourceSets, modules, "juce_audio_devices");
 
         MemoryOutputStream mo;
         mo.setNewLineString (getNewLineString());
@@ -1122,7 +1141,7 @@ private:
         props.add (new TextPropertyComponent (androidCustomAppBuildGradleContent, "Extra module's build.gradle content", 32768, true),
                    "Additional content to be appended to module's build.gradle inside android { section. ");
 
-        props.add (new TextPropertyComponent (androidGradleSettingsContent, "Custom gradle.settings content", 32768, true),
+        props.add (new TextPropertyComponent (androidGradleSettingsContent, "Custom settings.gradle content", 32768, true),
                    "You can customize the content of settings.gradle here");
 
         props.add (new ChoicePropertyComponent (androidScreenOrientation, "Screen Orientation",
@@ -1214,6 +1233,11 @@ private:
 
         props.add (new TextPropertyComponent (androidRemoteNotificationsConfigFile.getPropertyAsValue(), "Remote Notifications Config File", 2048, false),
                    "Path to google-services.json file. This will be the file provided by Firebase when creating a new app in Firebase console.");
+
+        props.add (new ChoicePropertyComponent (androidEnableVirtualMidi, "Enable Virtual MIDI"),
+                   "When enabled, this will add entries to your application manifest declaring that your program "
+                   "can provide the MidiDeviceService and/or MidiUmpDeviceService."
+                   "This has no effect unless the juce_audio_devices module is included in the project.");
 
         props.add (new TextPropertyComponent (androidManifestCustomXmlElements, "Custom Manifest XML Content", 8192, true),
                    "You can specify custom AndroidManifest.xml content overriding the default one generated by Projucer. "
@@ -1341,6 +1365,12 @@ private:
               && androidEnableRemoteNotifications.get();
     }
 
+    bool isVirtualMidiEnabled() const
+    {
+        return project.getEnabledModules().isModuleEnabled ("juce_audio_devices")
+              && androidEnableVirtualMidi.get();
+    }
+
     bool isInAppBillingEnabled() const
     {
         return project.getEnabledModules().isModuleEnabled ("juce_product_unlocking")
@@ -1395,6 +1425,58 @@ private:
         }
     }
 
+    void writeDeviceInfoXML (const File& folder) const
+    {
+        const auto makeDeviceNode = [this] (XmlElement& devices)
+        {
+            auto* device = devices.createNewChildElement ("device");
+            device->setAttribute ("manufacturer", project.getCompanyNameString());
+            device->setAttribute ("product", projectName);
+
+            const auto deviceName = (project.getCompanyNameString().isNotEmpty() ? (project.getCompanyNameString() + " ") : "")
+                                  + projectName;
+            device->setAttribute ("name", deviceName);
+            return device;
+        };
+
+        if (isVirtualMidiEnabled())
+        {
+            {
+                auto path = folder.getChildFile ("app")
+                                  .getChildFile ("src")
+                                  .getChildFile ("main")
+                                  .getChildFile ("res")
+                                  .getChildFile ("xml")
+                                  .getChildFile ("juce_midi_virtual_ump.xml");
+
+                auto devices = std::make_unique<XmlElement> ("devices");
+                auto* device = makeDeviceNode (*devices);
+                auto* port = device->createNewChildElement ("port");
+                port->setAttribute ("name", "MIDI 2.0");
+
+                writeXmlOrThrow (*devices, path, "utf-8", 100, true);
+            }
+
+            {
+                auto path = folder.getChildFile ("app")
+                                  .getChildFile ("src")
+                                  .getChildFile ("main")
+                                  .getChildFile ("res")
+                                  .getChildFile ("xml")
+                                  .getChildFile ("juce_midi_virtual_bytestream.xml");
+
+                auto devices = std::make_unique<XmlElement> ("devices");
+                auto* device = makeDeviceNode (*devices);
+                auto* portIn = device->createNewChildElement ("input-port");
+                portIn->setAttribute ("name", "In");
+                auto* portOut = device->createNewChildElement ("output-port");
+                portOut->setAttribute ("name", "Out");
+
+                writeXmlOrThrow (*devices, path, "utf-8", 100, true);
+            }
+        }
+    }
+
     void writeAndroidManifest (const File& folder) const
     {
         std::unique_ptr<XmlElement> manifest (createManifestXML());
@@ -1424,15 +1506,15 @@ private:
     {
         const auto icons = getIcons();
 
-        if (icons.big != nullptr && icons.small != nullptr)
+        if (icons.getBig() != nullptr && icons.getSmall() != nullptr)
         {
-            auto step = jmax (icons.big->getWidth(), icons.big->getHeight()) / 8;
+            auto step = jmax (icons.getBig()->getWidth(), icons.getBig()->getHeight()) / 8;
             writeIcon (folder.getChildFile ("drawable-xhdpi/icon.png"), build_tools::getBestIconForSize (icons, step * 8, false));
             writeIcon (folder.getChildFile ("drawable-hdpi/icon.png"),  build_tools::getBestIconForSize (icons, step * 6, false));
             writeIcon (folder.getChildFile ("drawable-mdpi/icon.png"),  build_tools::getBestIconForSize (icons, step * 4, false));
             writeIcon (folder.getChildFile ("drawable-ldpi/icon.png"),  build_tools::getBestIconForSize (icons, step * 3, false));
         }
-        else if (auto* icon = (icons.big != nullptr ? icons.big.get() : icons.small.get()))
+        else if (auto* icon = (icons.getBig() != nullptr ? icons.getBig() : icons.getSmall()))
         {
             writeIcon (folder.getChildFile ("drawable-mdpi/icon.png"), build_tools::rescaleImageForIcon (*icon, icon->getWidth()));
         }
@@ -1827,9 +1909,9 @@ private:
 
         if (! app->hasAttribute ("android:icon"))
         {
-            std::unique_ptr<Drawable> bigIcon (getBigIcon()), smallIcon (getSmallIcon());
+            const auto icons = getIcons();
 
-            if (bigIcon != nullptr || smallIcon != nullptr)
+            if (icons.getBig() != nullptr || icons.getSmall() != nullptr)
                 app->setAttribute ("android:icon", "@drawable/icon");
         }
 
@@ -1846,15 +1928,14 @@ private:
         setAttributeIfNotPresent (*act, "android:name", getActivityClassString());
 
         if (! act->hasAttribute ("android:configChanges"))
-            act->setAttribute ("android:configChanges", "keyboard|keyboardHidden|orientation|screenSize|navigation");
+            act->setAttribute ("android:configChanges", "keyboard|keyboardHidden|orientation|screenSize|navigation|smallestScreenSize|screenLayout|uiMode");
 
-        if (androidScreenOrientation.get() == "landscape")
+        if (androidScreenOrientation.get() != "unspecified")
         {
-            setAttributeIfNotPresent (*act, "android:screenOrientation", "userLandscape");
-        }
-        else
-        {
-            setAttributeIfNotPresent (*act, "android:screenOrientation", androidScreenOrientation.get());
+            setAttributeIfNotPresent (*act,
+                                      "android:screenOrientation",
+                                      androidScreenOrientation.get() == "landscape" ? "userLandscape"
+                                                                                    : androidScreenOrientation.get());
         }
 
         setAttributeIfNotPresent (*act, "android:launchMode", "singleTask");
@@ -1898,6 +1979,39 @@ private:
             auto* metaData = application.createNewChildElement ("meta-data");
             metaData->setAttribute ("android:name", "firebase_analytics_collection_deactivated");
             metaData->setAttribute ("android:value", "true");
+        }
+
+        if (isVirtualMidiEnabled())
+        {
+            {
+                auto* service = application.createNewChildElement ("service");
+                service->setAttribute ("android:name", "com.rmsl.juce.VirtualMidiServices$VirtualUmpService");
+                service->setAttribute ("android:enabled", "false");
+                service->setAttribute ("android:exported", "true");
+                service->setAttribute ("android:permission", "android.permission.BIND_MIDI_DEVICE_SERVICE");
+
+                auto* intentFilter = service->createNewChildElement ("intent-filter");
+                intentFilter->createNewChildElement ("action")->setAttribute ("android:name", "android.media.midi.MidiUmpDeviceService");
+
+                auto* property = service->createNewChildElement ("property");
+                property->setAttribute ("android:name", "android.media.midi.MidiUmpDeviceService");
+                property->setAttribute ("android:resource", "@xml/juce_midi_virtual_ump");
+            }
+
+            {
+                auto* service = application.createNewChildElement ("service");
+                service->setAttribute ("android:name", "com.rmsl.juce.VirtualMidiServices$VirtualBytestreamService");
+                service->setAttribute ("android:enabled", "false");
+                service->setAttribute ("android:exported", "true");
+                service->setAttribute ("android:permission", "android.permission.BIND_MIDI_DEVICE_SERVICE");
+
+                auto* intentFilter = service->createNewChildElement ("intent-filter");
+                intentFilter->createNewChildElement ("action")->setAttribute ("android:name", "android.media.midi.MidiDeviceService");
+
+                auto* metadata = service->createNewChildElement ("meta-data");
+                metadata->setAttribute ("android:name", "android.media.midi.MidiDeviceService");
+                metadata->setAttribute ("android:resource", "@xml/juce_midi_virtual_bytestream");
+            }
         }
     }
 

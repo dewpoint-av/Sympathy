@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -127,39 +127,51 @@ void HeaderComponent::updateExporters()
     auto selectedExporter = getSelectedExporter();
 
     exporterBox.clear();
-    auto preferredExporterIndex = -1;
 
     int i = 0;
+
     for (Project::ExporterIterator exporter (*project); exporter.next(); ++i)
     {
-        auto exporterName = exporter->getUniqueName();
-
-        exporterBox.addItem (exporterName, i + 1);
+        const auto exporterName = exporter->getUniqueName();
+        const auto id = i + 1;
+        exporterBox.addItem (exporterName, id);
 
         if (selectedExporter != nullptr && exporterName == selectedExporter->getUniqueName())
-            exporterBox.setSelectedId (i + 1);
-
-        if (exporterName.contains (ProjectExporter::getCurrentPlatformExporterTypeInfo().displayName) && preferredExporterIndex == -1)
-            preferredExporterIndex = i;
+            exporterBox.setSelectedId (id);
     }
 
-    if (exporterBox.getSelectedItemIndex() == -1)
+    const auto preferredExporterIndex = std::invoke ([&]
     {
-        if (preferredExporterIndex == -1)
+        std::vector<ProjectExporter::ExporterTypeInfo> infos;
+        ProjectExporter::getCurrentPlatformExporterTypeInfos (infos);
+
+        for (const auto& info : infos)
         {
-            i = 0;
-            for (Project::ExporterIterator exporter (*project); exporter.next(); ++i)
+            int index = 0;
+
+            for (Project::ExporterIterator exporter (*project); exporter.next(); ++index)
             {
-                if (exporter->canLaunchProject())
-                {
-                    preferredExporterIndex = i;
-                    break;
-                }
+                if (exporter->getUniqueName().contains (info.displayName))
+                    return index;
             }
         }
 
+        if (exporterBox.getSelectedItemIndex() == -1)
+        {
+            int index = 0;
+
+            for (Project::ExporterIterator exporter (*project); exporter.next(); ++index)
+            {
+                if (exporter->canLaunchProject())
+                    return index;
+            }
+        }
+
+        return -1;
+    });
+
+    if (exporterBox.getSelectedItemIndex() == -1)
         exporterBox.setSelectedItemIndex (preferredExporterIndex != -1 ? preferredExporterIndex : 0);
-    }
 
     updateExporterButton();
 }

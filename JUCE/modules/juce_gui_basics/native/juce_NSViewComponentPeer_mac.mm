@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -731,13 +731,13 @@ public:
         if (! Process::isForegroundProcess())
             Process::makeForegroundProcess();
 
-        ModifierKeys::currentModifiers = ModifierKeys::currentModifiers.withFlags (getModifierForButtonNumber ([ev buttonNumber]));
+        ModifierKeys::currentModifiers = ModifierKeys::getCurrentModifiers().withFlags (getModifierForButtonNumber ([ev buttonNumber]));
         sendMouseEvent (ev);
     }
 
     void redirectMouseUp (NSEvent* ev)
     {
-        ModifierKeys::currentModifiers = ModifierKeys::currentModifiers.withoutFlags (getModifierForButtonNumber ([ev buttonNumber]));
+        ModifierKeys::currentModifiers = ModifierKeys::getCurrentModifiers().withoutFlags (getModifierForButtonNumber ([ev buttonNumber]));
         sendMouseEvent (ev);
         showArrowCursorIfNeeded();
     }
@@ -750,13 +750,13 @@ public:
         if (draggingActive)
             return;
 
-        ModifierKeys::currentModifiers = ModifierKeys::currentModifiers.withFlags (getModifierForButtonNumber ([ev buttonNumber]));
+        ModifierKeys::currentModifiers = ModifierKeys::getCurrentModifiers().withFlags (getModifierForButtonNumber ([ev buttonNumber]));
         sendMouseEvent (ev);
     }
 
     void redirectMouseMove (NSEvent* ev)
     {
-        ModifierKeys::currentModifiers = ModifierKeys::currentModifiers.withoutMouseButtons();
+        ModifierKeys::currentModifiers = ModifierKeys::getCurrentModifiers().withoutMouseButtons();
 
         NSPoint windowPos = [ev locationInWindow];
         NSPoint screenPos = [[ev window] convertRectToScreen: NSMakeRect (windowPos.x, windowPos.y, 1.0f, 1.0f)].origin;
@@ -768,7 +768,7 @@ public:
         }
         else
             // moved into another window which overlaps this one, so trigger an exit
-            handleMouseEvent (MouseInputSource::InputSourceType::mouse, MouseInputSource::offscreenMousePos, ModifierKeys::currentModifiers,
+            handleMouseEvent (MouseInputSource::InputSourceType::mouse, MouseInputSource::offscreenMousePos, ModifierKeys::getCurrentModifiers(),
                               getMousePressure (ev), MouseInputSource::defaultOrientation, getMouseTime (ev));
 
         showArrowCursorIfNeeded();
@@ -934,13 +934,13 @@ public:
 
         if (([ev modifierFlags] & NSEventModifierFlagCommand) != 0)
         {
-            // for command keys, the key-up event is thrown away, so simulate one..
+            // for command keys, the key-up event is thrown away, so simulate one
             updateKeysDown (ev, false);
             used = (isValidPeer (this) && handleKeyEvent (ev, false)) || used;
         }
 
-        // (If we're running modally, don't allow unused keystrokes to be passed
-        // along to other blocked views..)
+        // If we're running modally, don't allow unused keystrokes to be passed
+        // along to other blocked views.
         if (Component::getCurrentlyModalComponent() != nullptr)
             used = true;
 
@@ -1205,7 +1205,7 @@ public:
     {
         // In plugins, the host could put our plugin window inside a modal window, so this
         // allows us to successfully open other popups. Feels like there could be edge-case
-        // problems caused by this, so let us know if you spot any issues..
+        // problems caused by this, so let us know if you spot any issues.
         return ! JUCEApplication::isStandaloneApp();
     }
 
@@ -1347,7 +1347,7 @@ public:
         if ((flags & NSEventModifierFlagOption) != 0)       m |= ModifierKeys::altModifier;
         if ((flags & NSEventModifierFlagCommand) != 0)      m |= ModifierKeys::commandModifier;
 
-        ModifierKeys::currentModifiers = ModifierKeys::currentModifiers.withOnlyMouseButtons().withFlags (m);
+        ModifierKeys::currentModifiers = ModifierKeys::getCurrentModifiers().withOnlyMouseButtons().withFlags (m);
     }
 
     static void updateKeysDown (NSEvent* ev, bool isKeyDown)
@@ -1445,9 +1445,16 @@ public:
 
     static int getModifierForButtonNumber (const NSInteger num)
     {
-        return num == 0 ? ModifierKeys::leftButtonModifier
-                        : (num == 1 ? ModifierKeys::rightButtonModifier
-                                    : (num == 2 ? ModifierKeys::middleButtonModifier : 0));
+        switch (num)
+        {
+            case 0: return ModifierKeys::leftButtonModifier;
+            case 1: return ModifierKeys::rightButtonModifier;
+            case 2: return ModifierKeys::middleButtonModifier;
+            case 3: return ModifierKeys::backButtonModifier;
+            case 4: return ModifierKeys::forwardButtonModifier;
+        }
+
+        return 0;
     }
 
     static unsigned int getNSWindowStyleMask (const int flags) noexcept
@@ -1932,6 +1939,9 @@ private:
             case NSEventTypeRightMouseUp:
             case NSEventTypeOtherMouseUp:
             case NSEventTypeOtherMouseDragged:
+           #if JUCE_MAC_API_VERSION_CAN_BE_BUILT (26, 0)
+            case NSEventTypeMouseCancelled:
+           #endif
                 if (Desktop::getInstance().getDraggingMouseSource (0) != nullptr)
                     return false;
                 break;
@@ -2062,15 +2072,15 @@ private:
 
     void modalComponentManagerChanged()
     {
-        // We are only changing the style flags if we absolutely have to. Plugin windows generally
-        // don't like to be modified. Windows created under plugin hosts running in an external
-        // subprocess are particularly touchy, and may make the window invisible even if we call
-        // [window setStyleMask [window setStyleMask]].
-        if (isSharedWindow || ! hasNativeTitleBar())
-            return;
-
-        const auto newStyleMask = [&]() -> std::optional<NSWindowStyleMask>
+        const auto newStyleMask = std::invoke ([&]() -> std::optional<NSWindowStyleMask>
         {
+            // We are only changing the style flags if we absolutely have to. Plugin windows generally
+            // don't like to be modified. Windows created under plugin hosts running in an external
+            // subprocess are particularly touchy, and may make the window invisible even if we call
+            // [window setStyleMask [window setStyleMask]].
+            if (isSharedWindow || ! hasNativeTitleBar())
+                return {};
+
             const auto currentStyleMask = [window styleMask];
 
             if (ModalComponentManager::getInstance()->getNumModalComponents() > 0)
@@ -2094,10 +2104,36 @@ private:
             }
 
             return {};
-        }();
+        });
 
-        if (newStyleMask && *newStyleMask != [window styleMask])
+        if (newStyleMask.has_value() && *newStyleMask != [window styleMask])
             [window setStyleMask: *newStyleMask];
+
+        const auto newLevel = std::invoke ([&]() -> std::optional<NSWindowLevel>
+        {
+            if (isSharedWindow)
+                return {};
+
+            auto* manager = ModalComponentManager::getInstance();
+
+            if (manager->getNumModalComponents() > 0)
+            {
+                auto* recent = manager->getModalComponent (0);
+
+                if (recent == &component || component.isParentOf (recent))
+                {
+                    if (! storedLevel.has_value())
+                        storedLevel = [window level];
+
+                    return NSModalPanelWindowLevel;
+                }
+            }
+
+            return std::exchange (storedLevel, {});
+        });
+
+        if (newLevel.has_value() && *newLevel != [window level])
+            [window setLevel: *newLevel];
     }
 
     //==============================================================================
@@ -2105,6 +2141,7 @@ private:
     std::vector<ScopedNotificationCenterObserver> windowObservers;
 
     std::optional<StoredStyleFlags> storedFlags;
+    std::optional<NSWindowLevel> storedLevel;
     ErasedScopeGuard modalChangeListenerScope =
         detail::ComponentHelpers::ModalComponentManagerChangeNotifier::getInstance().addListener ([this]
                                                                                                   {
@@ -2210,6 +2247,25 @@ struct JuceNSViewClass final : public NSViewComponentPeerWrapper<ObjCClass<NSVie
 
         addMethod (@selector (draggingEnded:),                  draggingExited);
         addMethod (@selector (draggingExited:),                 draggingExited);
+
+        addMethod (@selector (hitTest:), [] (id self, SEL, NSPoint pt) -> NSView*
+        {
+            auto* hit = sendSuperclassMessage<NSView*> (self, @selector (hitTest:), pt);
+
+            if (hit == nil || hit == self)
+                return hit;
+
+            auto* owner = getOwner (self);
+
+            if (owner == nullptr || ! owner->isBlockedByModalComponent())
+                return hit;
+
+            for (NSView* v = hit; v != nil && v != self; v = [v superview])
+                if ([v isKindOfClass: [self class]])
+                    return hit;
+
+            return owner->view;
+        });
 
         JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wundeclared-selector")
         addMethod (@selector (clipsToBounds), [] (id, SEL) { return YES; });
@@ -2678,7 +2734,7 @@ private:
         {
             // In some host situations, the host will stop modal loops from working
             // correctly if they're called from a mouse event, so we'll trigger
-            // the event asynchronously..
+            // the event asynchronously.
             [self performSelectorOnMainThread: NSViewComponentPeer::asyncMouseDownSelector
                                    withObject: ev
                                 waitUntilDone: NO];
@@ -2695,7 +2751,7 @@ private:
         {
             // In some host situations, the host will stop modal loops from working
             // correctly if they're called from a mouse event, so we'll trigger
-            // the event asynchronously..
+            // the event asynchronously.
             [self performSelectorOnMainThread: NSViewComponentPeer::asyncMouseUpSelector
                                    withObject: ev
                                 waitUntilDone: NO];
@@ -2846,8 +2902,6 @@ struct JuceNSWindowClass final : public NSViewComponentPeerWrapper<ObjCClass<NSW
 
             return false;
         });
-
-        addMethod (@selector (isFlipped), [] (id, SEL) { return true; });
 
         addMethod (@selector (windowWillUseStandardFrame:defaultFrame:), [] (id self, SEL, NSWindow* window, NSRect r)
         {
@@ -3012,7 +3066,7 @@ void Desktop::setKioskComponent (Component* kioskComp, bool shouldBeEnabled, boo
             [NSApp setPresentationOptions: (allowMenusAndBars ? (NSApplicationPresentationAutoHideDock | NSApplicationPresentationAutoHideMenuBar)
                                                               : (NSApplicationPresentationHideDock | NSApplicationPresentationHideMenuBar))];
 
-            kioskComp->setBounds (getDisplays().getDisplayForRect (kioskComp->getScreenBounds())->totalArea);
+            kioskComp->setBounds (getDisplays().getDisplayForRect (kioskComp->getScreenBounds())->logicalBounds.getSmallestIntegerContainer());
             peer->becomeKeyWindow();
         }
         else

@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -951,7 +951,8 @@ void TextEditor::updateBaseShapedTextOptions()
                                                 .withLeading (lineSpacing);
 
     if (wordWrap)
-        options = options.withWordWrapWidth ((float) getMaximumTextWidth());
+        options = options.withWordWrapWidth ((float) getMaximumTextWidth())
+                         .withAllowBreakingInsideWord();
     else
         options = options.withAlignmentWidth ((float) getMaximumTextWidth());
 
@@ -1506,10 +1507,8 @@ void TextEditor::paintOverChildren (Graphics& g)
         g.setColour (colourForTextWhenEmpty);
         g.setFont (getFont());
 
-        Rectangle<int> textBounds (leftIndent,
-                                   topIndent,
-                                   viewport->getWidth() - leftIndent,
-                                   getHeight() - topIndent);
+        const auto textBounds = viewport->getBounds().withTrimmedLeft (leftIndent)
+                                                     .withTrimmedTop (topIndent);
 
         if (! textBounds.isEmpty())
             g.drawText (textToShowWhenEmpty, textBounds, justification, true);
@@ -1581,8 +1580,8 @@ void TextEditor::mouseDown (const MouseEvent& e)
 
             menuActive = true;
 
-            m.showMenuAsync (PopupMenu::Options(),
-                             [safeThis = SafePointer<TextEditor> { this }] (int menuResult)
+            m.showMenuAsync (PopupMenu::Options().withTargetComponent (this).withMousePosition(),
+                             [safeThis = SafePointer { this }] (int menuResult)
                              {
                                  if (auto* editor = safeThis.getComponent())
                                  {
@@ -1951,7 +1950,7 @@ bool TextEditor::keyStateChanged (const bool isKeyDown)
         return false;
 
     // (overridden to avoid forwarding key events to the parent)
-    return ! ModifierKeys::currentModifiers.isCommandDown();
+    return ! ModifierKeys::getCurrentModifiers().isCommandDown();
 }
 
 //==============================================================================

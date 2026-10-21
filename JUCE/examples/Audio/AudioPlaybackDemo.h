@@ -36,8 +36,9 @@
  dependencies:     juce_audio_basics, juce_audio_devices, juce_audio_formats,
                    juce_audio_processors, juce_audio_utils, juce_core,
                    juce_data_structures, juce_events, juce_graphics,
-                   juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2022, linux_make, androidstudio, xcode_iphone
+                   juce_gui_basics, juce_gui_extra, juce_audio_processors_headless
+ exporters:        xcode_mac, vs2022, vs2026, linux_make, androidstudio,
+                   xcode_iphone
 
  type:             Component
  mainClass:        AudioPlaybackDemo
@@ -75,7 +76,7 @@ public:
         scrollbar.addListener (this);
 
         currentPositionMarker.setFill (Colours::white.withAlpha (0.85f));
-        addAndMakeVisible (currentPositionMarker);
+        addAndMakeVisible (currentPositionMarkerComponent);
     }
 
     ~DemoThumbnailComp() override
@@ -211,6 +212,7 @@ private:
     URL lastFileDropped;
 
     DrawableRectangle currentPositionMarker;
+    DrawableComponent currentPositionMarkerComponent { currentPositionMarker };
 
     float timeToX (const double time) const
     {
@@ -247,10 +249,10 @@ private:
 
     void updateCursorPosition()
     {
-        currentPositionMarker.setVisible (transportSource.isPlaying() || isMouseButtonDown());
+        currentPositionMarkerComponent.setVisible (transportSource.isPlaying() || isMouseButtonDown());
 
         currentPositionMarker.setRectangle (Rectangle<float> (timeToX (transportSource.getCurrentPosition()) - 0.75f, 0,
-                                                              1.5f, (float) (getHeight() - scrollbar.getHeight())));
+                                                               1.5f, (float) (getHeight() - scrollbar.getHeight())));
     }
 };
 

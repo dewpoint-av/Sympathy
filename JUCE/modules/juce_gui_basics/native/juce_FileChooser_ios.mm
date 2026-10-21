@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -214,13 +214,13 @@ private:
 
         static FileChooserControllerClass* oldFn (int flags, const StringArray& validExtensions)
         {
-            const NSUniquePtr<NSArray> utTypeArray { std::invoke ([&]
+            const auto utTypes { std::invoke ([&]() -> StringArray
             {
                 if ((flags & FileBrowserComponent::canSelectDirectories) != 0)
-                    return @[@"public.folder"];
+                    return { "public.folder" };
 
                 if (validExtensions.isEmpty())
-                    return @[@"public.data"];
+                    return { "public.data" };
 
                 StringArray result;
 
@@ -237,11 +237,11 @@ private:
                     JUCE_END_IGNORE_WARNINGS_GCC_LIKE
                 }
 
-                return createNSArrayFromStringArray (result);
+                return result;
             }) };
 
             JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wdeprecated-declarations")
-            return [[FileChooserControllerClass alloc] initWithDocumentTypes: utTypeArray.get() inMode: UIDocumentPickerModeOpen];
+            return [[FileChooserControllerClass alloc] initWithDocumentTypes: createNSArrayFromStringArray (utTypes) inMode: UIDocumentPickerModeOpen];
             JUCE_END_IGNORE_WARNINGS_GCC_LIKE
         }
     };

@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -150,7 +150,7 @@ struct JUCE_API FloatVectorOperationsBase
     static FloatType JUCE_CALLTYPE findMaximum (const FloatType* src, CountType numValues) noexcept;
 };
 
-#if ! DOXYGEN
+/** @cond */
 namespace detail
 {
 
@@ -177,7 +177,7 @@ struct NameForwarder : public Bases...
 };
 
 } // namespace detail
-#endif
+/** @endcond */
 
 //==============================================================================
 /**

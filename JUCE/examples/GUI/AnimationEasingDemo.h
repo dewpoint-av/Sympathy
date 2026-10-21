@@ -35,7 +35,7 @@
 
  dependencies:     juce_gui_basics, juce_animation
 
- exporters:        xcode_mac, vs2022, androidstudio, xcode_iphone
+ exporters:        xcode_mac, vs2022, vs2026, androidstudio, xcode_iphone
 
  moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
@@ -806,6 +806,7 @@ public:
     //==============================================================================
     AnimationEasingDemo()
     {
+        setName ("Animation easing demo");
         animationSettings.durationMs = 1000.0;
         animationSettings.shouldAnimatePosition = true;
         animationSettings.shouldAnimateSize = false;

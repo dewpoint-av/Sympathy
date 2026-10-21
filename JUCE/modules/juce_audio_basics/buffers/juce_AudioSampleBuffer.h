@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -487,16 +487,33 @@ public:
         jassert (dataToReferTo != nullptr);
         jassert (newNumChannels >= 0 && newNumSamples >= 0);
 
-        if (allocatedBytes != 0)
-        {
-            allocatedBytes = 0;
-            allocatedData.free();
-        }
-
-        numChannels = newNumChannels;
         size = newNumSamples;
 
-        allocateChannels (dataToReferTo, newStartSample);
+        if (newNumChannels <= numChannels)
+        {
+            numChannels = newNumChannels;
+
+            std::transform (dataToReferTo, dataToReferTo + numChannels, channels, [&] (auto* src)
+            {
+                jassert (src != nullptr);
+                return src + newStartSample;
+            });
+
+            channels[numChannels] = nullptr;
+            isClear = false;
+        }
+        else
+        {
+            if (allocatedBytes != 0)
+            {
+                allocatedBytes = 0;
+                allocatedData.free();
+            }
+
+            numChannels = newNumChannels;
+            allocateChannels (dataToReferTo, newStartSample);
+        }
+
         jassert (! isClear);
     }
 

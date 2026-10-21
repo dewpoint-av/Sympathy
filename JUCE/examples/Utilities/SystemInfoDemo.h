@@ -35,7 +35,8 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics
- exporters:        xcode_mac, vs2022, linux_make, androidstudio, xcode_iphone
+ exporters:        xcode_mac, vs2022, vs2026, linux_make, androidstudio,
+                   xcode_iphone
 
  moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
@@ -111,8 +112,8 @@ static String getDisplayInfo()
         auto display = displays.displays.getReference (i);
 
         displayDesc << "Display " << (i + 1) << (display.isMain ? " (main)" : "") << ":" << newLine
-                    << "  Total area: " << display.totalArea.toString() << newLine
-                    << "  User area:  " << display.userArea .toString() << newLine
+                    << "  Total area: " << display.logicalBounds.toString() << newLine
+                    << "  User area:  " << display.userBounds   .toString() << newLine
                     << "  DPI: "        << display.dpi   << newLine
                     << "  Scale: "      << display.scale << newLine
                     << newLine;

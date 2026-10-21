@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -35,12 +35,26 @@
 namespace juce
 {
 
-static constexpr bool isNonBreakingSpace (const juce_wchar c)
+static String portableTrim (String toTrim)
 {
-    return c == 0x00a0
-        || c == 0x2007
-        || c == 0x202f
-        || c == 0x2060;
+    if (toTrim.isEmpty())
+        return toTrim;
+
+    const auto b = toTrim.begin();
+    const auto e = toTrim.end();
+
+    const auto shouldTrim = [] (auto ptr)
+    {
+        return SBCodepointGetBidiType ((SBCodepoint) *ptr) == SBBidiTypeWS;
+    };
+
+    const auto trimmedBegin = CharacterFunctions::trimBegin (b, e, shouldTrim);
+    const auto trimmedEnd = CharacterFunctions::trimEnd (trimmedBegin, e, shouldTrim);
+
+    if (trimmedBegin == b && trimmedEnd == e)
+        return toTrim;
+
+    return String (trimmedBegin, trimmedEnd);
 }
 
 static bool areAllRequiredWidthsSmallerThanMax (const detail::ShapedText& shapedText, float width)
@@ -97,9 +111,9 @@ void PositionedGlyph::createPath (Path& path) const
         if (auto t = font.getTypefacePtr())
         {
             Path p;
-            t->getOutlineForGlyph (font.getMetricsKind(), glyph, p);
+            t->getOutlineForGlyph (glyph, p);
 
-            path.addPath (p, AffineTransform::scale (font.getHeight() * font.getHorizontalScale(), font.getHeight())
+            path.addPath (p, AffineTransform::scale (font.getHeightInPoints() * font.getHorizontalScale(), font.getHeightInPoints())
                                              .translated (x, y));
         }
     }
@@ -112,10 +126,10 @@ bool PositionedGlyph::hitTest (float px, float py) const
         if (auto t = font.getTypefacePtr())
         {
             Path p;
-            t->getOutlineForGlyph (font.getMetricsKind(), glyph, p);
+            t->getOutlineForGlyph (glyph, p);
 
             AffineTransform::translation (-x, -y)
-                            .scaled (1.0f / (font.getHeight() * font.getHorizontalScale()), 1.0f / font.getHeight())
+                            .scaled (1.0f / (font.getHeightInPoints() * font.getHorizontalScale()), 1.0f / font.getHeightInPoints())
                             .transformPoint (px, py);
 
             return p.contains (px, py);
@@ -149,6 +163,11 @@ PositionedGlyph& GlyphArrangement::getGlyph (int index) noexcept
     return glyphs.getReference (index);
 }
 
+const PositionedGlyph& GlyphArrangement::getGlyph (int index) const noexcept
+{
+    return glyphs.getReference (index);
+}
+
 //==============================================================================
 void GlyphArrangement::addGlyphArrangement (const GlyphArrangement& other)
 {
@@ -174,28 +193,40 @@ void GlyphArrangement::addLineOfText (const Font& font, const String& text, floa
 static void addGlyphsFromShapedText (GlyphArrangement& ga, const detail::ShapedText& st, float x, float y)
 {
     st.accessTogetherWith ([&] (auto shapedGlyphs, auto positions, auto font, auto glyphRange, auto)
-                           {
-                               for (size_t i = 0; i < shapedGlyphs.size(); ++i)
-                               {
-                                   const auto glyphIndex = (int64) i + glyphRange.getStart();
+    {
+        for (auto it = shapedGlyphs.begin(); it != shapedGlyphs.end();)
+        {
+            const auto& glyph = *it;
+            const auto isNotPlaceholder = [] (auto& shapedGlyph)
+            {
+                return ! shapedGlyph.isPlaceholderForLigature();
+            };
 
-                                   auto& glyph = shapedGlyphs[i];
-                                   auto& position = positions[i];
+            const auto next = std::find_if (std::next (it),
+                                            shapedGlyphs.end(),
+                                            isNotPlaceholder);
 
-                                   if (glyph.isPlaceholderForLigature())
-                                       continue;
+            const auto addWidth = [] (auto acc, auto& shapedGlyph)
+            {
+                return acc + shapedGlyph.advance.x;
+            };
 
-                                   PositionedGlyph pg { font,
-                                                        st.getText()[(int) st.getTextRange (glyphIndex).getStart()],
-                                                        (int) glyph.glyphId,
-                                                        position.getX() + x,
-                                                        position.getY() + y,
-                                                        glyph.advance.getX(),
-                                                        glyph.isWhitespace() };
+            const auto width = std::accumulate (it, next, 0.0f, addWidth);
+            const auto index = (size_t) std::distance (shapedGlyphs.begin(), it);
+            const auto position = positions[index];
+            const auto glyphIndex = (int64) index + glyphRange.getStart();
 
-                                   ga.addGlyph (std::move (pg));
-                               }
-                           });
+            ga.addGlyph ({ font,
+                           st.getText()[(int) st.getTextRange (glyphIndex).getStart()],
+                           (int) glyph.glyphId,
+                           position.getX() + x,
+                           position.getY() + y,
+                           width,
+                           glyph.isWhitespace() });
+
+            it = next;
+        }
+    });
 }
 
 void GlyphArrangement::addCurtailedLineOfText (const Font& font, const String& text,
@@ -268,7 +299,7 @@ static auto createFittedText (const Font& f,
         return st;
     }
 
-    const auto trimmed = text.trim();
+    const auto trimmed = portableTrim (text);
 
     constexpr auto widthFittingTolerance = 0.01f;
 

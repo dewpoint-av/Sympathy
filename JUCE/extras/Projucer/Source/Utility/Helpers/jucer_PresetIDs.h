@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -125,6 +125,7 @@ namespace Ids
     DECLARE_ID (cppLibType);
     DECLARE_ID (codeSigningIdentity);
     DECLARE_ID (fastMath);
+    DECLARE_ID (intrinsicFunctions);
     DECLARE_ID (linkTimeOptimisation);
     DECLARE_ID (vstBinaryLocation);
     DECLARE_ID (vst3BinaryLocation);
@@ -158,8 +159,10 @@ namespace Ids
     DECLARE_ID (msvcModuleDefinitionFile);
     DECLARE_ID (bigIcon);
     DECLARE_ID (smallIcon);
+    DECLARE_ID (iconComposerIcon);
     DECLARE_ID (prebuildCommand);
     DECLARE_ID (postbuildCommand);
+    DECLARE_ID (postSignCommand);
     DECLARE_ID (useRuntimeLibDLL);
     DECLARE_ID (multiProcessorCompilation);
     DECLARE_ID (enableIncrementalLinking);
@@ -214,6 +217,8 @@ namespace Ids
     DECLARE_ID (cameraPermissionText);
     DECLARE_ID (sendAppleEventsPermissionNeeded);
     DECLARE_ID (sendAppleEventsPermissionText);
+    DECLARE_ID (localNetworkPermissionNeeded);
+    DECLARE_ID (localNetworkPermissionText);
     DECLARE_ID (androidJavaLibs);
     DECLARE_ID (androidAdditionalJavaFolders);
     DECLARE_ID (androidAdditionalResourceFolders);
@@ -265,6 +270,7 @@ namespace Ids
     DECLARE_ID (androidScreenOrientation);
     DECLARE_ID (androidExtraAssetsFolder);
     DECLARE_ID (androidStudioExePath);
+    DECLARE_ID (androidEnableVirtualMidi);
     DECLARE_ID (iosDeviceFamily);
     const Identifier iPhoneScreenOrientation ("iosScreenOrientation"); // old name is confusing
     DECLARE_ID (iPadScreenOrientation);
@@ -364,6 +370,7 @@ namespace Ids
     DECLARE_ID (pluginProducesMidiOut);
     DECLARE_ID (pluginIsMidiEffectPlugin);
     DECLARE_ID (pluginEditorRequiresKeys);
+    DECLARE_ID (pluginLV2PluginClass);
     DECLARE_ID (pluginVSTCategory);
     DECLARE_ID (pluginVST3Category);
     DECLARE_ID (pluginAUExportPrefix);
@@ -395,7 +402,10 @@ namespace Ids
     DECLARE_ID (lv2Uri);
     DECLARE_ID (lv2UriUi);
     DECLARE_ID (lv2BinaryLocation);
-    DECLARE_ID (vst3ManifestEnabled);
+    DECLARE_ID (paceProtectionEnabled);
+    DECLARE_ID (paceConfigurationLocation);
+    DECLARE_ID (paceBuildSourceRootFolder);
+    DECLARE_ID (paceUsingSharableTargetNames);
 
     DECLARE_ID (osxSDK);
     DECLARE_ID (osxCompatibility);

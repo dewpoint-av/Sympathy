@@ -35,7 +35,7 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics
- exporters:        xcode_mac, vs2022
+ exporters:        xcode_mac, vs2022, vs2026
 
  moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
@@ -144,7 +144,9 @@ public:
     //==============================================================================
     ComponentDemo()
     {
-        // add the light grid to out main component.
+        setName ("Component demo");
+
+        // add the light grid to our main component.
         addAndMakeVisible (lightGrid);
 
         setSize (600, 600);

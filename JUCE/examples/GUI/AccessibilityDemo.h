@@ -36,7 +36,7 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2022, androidstudio, xcode_iphone
+ exporters:        xcode_mac, vs2022, vs2026, androidstudio, xcode_iphone
 
  moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
                    JUCE_PUSH_NOTIFICATIONS=1
@@ -1564,7 +1564,7 @@ public:
     }
 
 private:
-    TooltipWindow tooltipWindow { nullptr, 100 };
+    SharedResourcePointer<TooltipWindow> tooltipWindow;
 
     TabbedComponent tabs { TabbedButtonBar::Orientation::TabsAtTop };
 

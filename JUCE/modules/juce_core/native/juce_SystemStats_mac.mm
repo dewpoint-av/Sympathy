@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -150,6 +150,10 @@ SystemStats::OperatingSystemType SystemStats::getOperatingSystemType()
         case 13: return MacOS_13;
         case 14: return MacOS_14;
         case 15: return MacOS_15;
+
+        case 16:
+        case 26:
+            return MacOS_26;
     }
 
     return MacOSX;
@@ -197,11 +201,7 @@ String SystemStats::getDeviceManufacturer()
 
 bool SystemStats::isOperatingSystem64Bit()
 {
-   #if JUCE_IOS
-    return false;
-   #else
     return true;
-   #endif
 }
 
 int SystemStats::getMemorySizeInMegabytes()
@@ -313,18 +313,18 @@ public:
         mach_timebase_info_data_t timebase;
         (void) mach_timebase_info (&timebase);
 
-        if (timebase.numer % 1000000 == 0)
+        if (timebase.numer % 1'000'000 == 0)
         {
-            hiResCounterNumerator   = timebase.numer / 1000000;
+            hiResCounterNumerator   = timebase.numer / 1'000'000;
             hiResCounterDenominator = timebase.denom;
         }
         else
         {
             hiResCounterNumerator   = timebase.numer;
-            hiResCounterDenominator = timebase.denom * (uint64) 1000000;
+            hiResCounterDenominator = timebase.denom * (uint64) 1'000'000;
         }
 
-        highResTimerFrequency = (timebase.denom * (uint64) 1000000000) / timebase.numer;
+        highResTimerFrequency = (timebase.denom * (uint64) 1'000'000'000) / timebase.numer;
         highResTimerToMillisecRatio = (double) hiResCounterNumerator / (double) hiResCounterDenominator;
     }
 

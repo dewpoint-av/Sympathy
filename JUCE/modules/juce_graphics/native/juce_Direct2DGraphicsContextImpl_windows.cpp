@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -216,8 +216,8 @@ private:
         explicit OwningLayer (const D2D1_LAYER_PARAMETERS1& p) : params (p) {}
 
         D2D1_LAYER_PARAMETERS1 params;
-        ComSmartPtr<ID2D1Geometry> geometry = params.geometricMask != nullptr ? addComSmartPtrOwner (params.geometricMask) : nullptr;
-        ComSmartPtr<ID2D1Brush> brush = params.opacityBrush != nullptr ? addComSmartPtrOwner (params.opacityBrush) : nullptr;
+        ComSmartPtr<ID2D1Geometry> geometry { params.geometricMask, IncrementRef::yes };
+        ComSmartPtr<ID2D1Brush> brush { params.opacityBrush, IncrementRef::yes };
     };
 
     struct Layer
@@ -449,8 +449,7 @@ public:
     {
         noTransforms = 0,
         applyWorldTransform = 1,
-        applyInverseWorldTransform = 2,
-        applyFillTypeTransform = 4,
+        applyFillTypeTransform = 2,
         applyWorldAndFillTypeTransforms = applyFillTypeTransform | applyWorldTransform
     };
 
@@ -462,61 +461,37 @@ public:
         if (! fillType.isGradient() && ! fillType.isTiledImage())
             return currentBrush;
 
-        Point<float> translation{};
         AffineTransform transform{};
+
+        if ((flags & BrushTransformFlags::applyWorldTransform) != 0)
+            transform = currentTransform.getTransform();
+
+        if ((flags & BrushTransformFlags::applyFillTypeTransform) != 0)
+            transform = fillType.transform.followedBy (transform);
 
         if (fillType.isGradient())
         {
-            if ((flags & BrushTransformFlags::applyWorldTransform) != 0)
-            {
-                if (currentTransform.isOnlyTranslated)
-                    translation = currentTransform.offset.toFloat();
-                else
-                    transform = currentTransform.getTransform();
-            }
-
-            if ((flags & BrushTransformFlags::applyFillTypeTransform) != 0)
-            {
-                if (fillType.transform.isOnlyTranslation())
-                    translation += Point (fillType.transform.getTranslationX(), fillType.transform.getTranslationY());
-                else
-                    transform = transform.followedBy (fillType.transform);
-            }
-
-            if ((flags & BrushTransformFlags::applyInverseWorldTransform) != 0)
-            {
-                if (currentTransform.isOnlyTranslated)
-                    translation -= currentTransform.offset.toFloat();
-                else
-                    transform = transform.followedBy (currentTransform.getTransform().inverted());
-            }
-
-            const auto p1 = fillType.gradient->point1 + translation;
-            const auto p2 = fillType.gradient->point2 + translation;
+            const auto& g = *fillType.gradient;
+            const auto p1 = g.point1;
+            const auto p2 = g.point2;
 
             if (fillType.gradient->isRadial)
             {
-                const auto radius = p2.getDistanceFrom (p1);
-                radialGradient->SetRadiusX (radius);
-                radialGradient->SetRadiusY (radius);
-                radialGradient->SetCenter ({ p1.x, p1.y });
+                const auto endCircleOrigin = g.endRadius >= 0.0f ? p2 : p1;
+                const auto endRadius = g.endRadius >= 0.0f ? g.endRadius : p2.getDistanceFrom (p1);
+                const auto gradientOrigin = p1;
+                const auto gradientOffset = gradientOrigin - endCircleOrigin;
+
+                radialGradient->SetRadiusX (endRadius);
+                radialGradient->SetRadiusY (endRadius);
+                radialGradient->SetCenter ({ endCircleOrigin.x, endCircleOrigin.y });
+                radialGradient->SetGradientOriginOffset ({ gradientOffset.x, gradientOffset.y });
             }
             else
             {
                 linearGradient->SetStartPoint ({ p1.x, p1.y });
                 linearGradient->SetEndPoint ({ p2.x, p2.y });
             }
-        }
-        else if (fillType.isTiledImage())
-        {
-            if ((flags & BrushTransformFlags::applyWorldTransform) != 0)
-                transform = currentTransform.getTransform();
-
-            if ((flags & BrushTransformFlags::applyFillTypeTransform) != 0)
-                transform = transform.followedBy (fillType.transform);
-
-            if ((flags & BrushTransformFlags::applyInverseWorldTransform) != 0)
-                transform = transform.followedBy (currentTransform.getTransform().inverted());
         }
 
         currentBrush->SetTransform (D2DUtilities::transformToMatrix (transform));
@@ -580,6 +555,7 @@ public:
     FillType fillType;
 
     D2D1_INTERPOLATION_MODE interpolationMode = D2D1_INTERPOLATION_MODE_LINEAR;
+    D2D1_COMPOSITE_MODE imageBlendMode = D2D1_COMPOSITE_MODE_SOURCE_OVER;
 
     JUCE_LEAK_DETECTOR (SavedState)
 };

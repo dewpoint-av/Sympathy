@@ -10,7 +10,7 @@ namespace
 ResonanceVisualizer::ResonanceVisualizer (SympathyAudioProcessor& p)
     : proc (p)
 {
-    startTimerHz (30);
+    startTimerHz (20);
 }
 
 ResonanceVisualizer::~ResonanceVisualizer()

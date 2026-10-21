@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -230,7 +230,7 @@ static jobject makeAndroidRect (Rectangle<int> r)
                                 r.getBottom());
 }
 
-static jobject makeAndroidPoint (Point<int> p)
+static inline jobject makeAndroidPoint (Point<int> p)
 {
     return getEnv()->NewObject (AndroidPoint,
                                 AndroidPoint.create,
@@ -333,14 +333,14 @@ public:
 
         env->CallVoidMethod (info,
                              AndroidAccessibilityNodeInfo.setEnabled,
-                             ! state.isIgnored());
+                             ! state.isIgnored() && accessibilityHandler.getComponent().isEnabled());
         env->CallVoidMethod (info,
                              AndroidAccessibilityNodeInfo.setVisibleToUser,
                              true);
         env->CallVoidMethod (info,
                              AndroidAccessibilityNodeInfo.setPackageName,
-                             env->CallObjectMethod (appContext.get(),
-                                                    AndroidContext.getPackageName));
+                             LocalRef { env->CallObjectMethod (appContext.get(),
+                                                               AndroidContext.getPackageName) }.get());
         env->CallVoidMethod (info,
                              AndroidAccessibilityNodeInfo.setSource,
                              sourceView,
@@ -792,8 +792,8 @@ public:
 
             env->CallVoidMethod (event,
                                  AndroidAccessibilityEvent.setPackageName,
-                                 env->CallObjectMethod (appContext.get(),
-                                                        AndroidContext.getPackageName));
+                                 LocalRef { env->CallObjectMethod (appContext.get(),
+                                                                   AndroidContext.getPackageName) }.get());
 
             env->CallVoidMethod (event,
                                  AndroidAccessibilityEvent.setSource,
