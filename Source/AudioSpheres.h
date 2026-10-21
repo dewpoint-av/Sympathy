@@ -19,6 +19,7 @@ inline juce::Colour sphereColour (float m)
     const juce::Colour purple (0xff8b5cf6);
     const juce::Colour red    (0xffff2a2a);
     m = juce::jlimit (0.0f, 1.0f, m);
+    m = std::pow (m, 0.4f);   // contrast curve so quiet content isn't all blue
     return (m < 0.5f) ? blue.interpolatedWith  (purple, m * 2.0f)
                       : purple.interpolatedWith (red,    (m - 0.5f) * 2.0f);
 }

@@ -10,7 +10,7 @@ namespace
 ResonanceVisualizer::ResonanceVisualizer (SympathyAudioProcessor& p)
     : proc (p)
 {
-    startTimerHz (60);
+    startTimerHz (30);
 }
 
 ResonanceVisualizer::~ResonanceVisualizer()
@@ -34,7 +34,7 @@ void ResonanceVisualizer::timerCallback()
 
 void ResonanceVisualizer::update()
 {
-    time += 1.0f / 60.0f;
+    time += 1.0f / 30.0f;
     level = proc.getEngine().getLevel();
 
     auto& state = proc.getParameters();
@@ -61,7 +61,7 @@ void ResonanceVisualizer::update()
 
     for (auto& pt : particles)
     {
-        pt.life -= 1.0f / 60.0f;
+        pt.life -= 1.0f / 30.0f;
         const float drag = 1.0f - 0.035f * (1.0f - brightness);   // bright = less drag
         pt.vx *= drag;
         pt.vy *= drag;
@@ -74,7 +74,7 @@ void ResonanceVisualizer::update()
                      particles.end());
 
     // --- expanding energy rings --------------------------------------------
-    ringAccumulator += activity / 60.0f;
+    ringAccumulator += activity / 30.0f;
     while (ringAccumulator > 0.35f)
     {
         ringAccumulator -= 0.35f;
@@ -84,7 +84,7 @@ void ResonanceVisualizer::update()
     for (auto& ring : rings)
     {
         ring.radius += ring.speed;
-        ring.alpha -= (1.0f / 60.0f) / juce::jmax (0.25f, decay);   // longer decay = slower fade
+        ring.alpha -= (1.0f / 30.0f) / juce::jmax (0.25f, decay);   // longer decay = slower fade
     }
 
     rings.erase (std::remove_if (rings.begin(), rings.end(),

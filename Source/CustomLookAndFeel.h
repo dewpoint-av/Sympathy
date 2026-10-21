@@ -66,10 +66,10 @@ public:
         g.strokePath (arc, juce::PathStrokeType (2.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
         // Pointer
-        g.setColour (text);
+        g.setColour (accent);
         juce::Line<float> pointer (cx, cy,
-                                   cx + radius * 0.58f * std::cos (valueAngle),
-                                   cy + radius * 0.58f * std::sin (valueAngle));
+                                   cx + radius * 0.85f * std::cos (valueAngle),
+                                   cy + radius * 0.85f * std::sin (valueAngle));
         g.drawLine (pointer, 2.0f);
 
         // Centre dot
