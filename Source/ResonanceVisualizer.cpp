@@ -10,7 +10,7 @@ namespace
 ResonanceVisualizer::ResonanceVisualizer (SympathyAudioProcessor& p)
     : proc (p)
 {
-    startTimerHz (20);
+    startTimerHz (12);
 }
 
 ResonanceVisualizer::~ResonanceVisualizer()
@@ -157,7 +157,12 @@ void ResonanceVisualizer::paint (juce::Graphics& g)
         const float fmax = std::log10 (20000.0f);
         const float exciteGlow = 0.35f + 0.65f * mix;
 
-        for (int i = 0; i < numModes; ++i)
+        // Subsample to a fixed budget of spikes so the per-frame draw-call
+        // count stays low no matter how many modes the engine runs.
+        constexpr int kMaxSpikes = 24;
+        const int stride = juce::jmax (1, (numModes + kMaxSpikes - 1) / kMaxSpikes);
+
+        for (int i = 0; i < numModes; i += stride)
         {
             const float f = engine.getModeFrequency (i);
             const float t = (std::log10 (f) - fmin) / (fmax - fmin);
@@ -177,11 +182,9 @@ void ResonanceVisualizer::paint (juce::Graphics& g)
 
             const float a = juce::jlimit (0.06f, 0.95f, 0.10f + level * 1.6f) * (0.4f + 0.6f * brightness);
 
-            g.setColour (accent.withAlpha (a * 0.35f));
-            g.drawLine (x0, y0, x1, y1, 3.5f);
             g.setColour (accent.withAlpha (a));
             g.drawLine (x0, y0, x1, y1, 1.4f);
-            g.fillEllipse (x1 - 2.0f, y1 - 2.0f, 4.0f, 4.0f);
+            g.fillEllipse (x1 - 1.5f, y1 - 1.5f, 3.0f, 3.0f);
         }
     }
 
@@ -211,52 +214,25 @@ void ResonanceVisualizer::paint (juce::Graphics& g)
                 wave.lineTo (b.getX() + t * b.getWidth(),
                              sy + std::sin (t * 2.0f * kPi * 3.0f + time * 6.0f + s * 1.5f) * amp);
             }
-            g.setColour (accent.withAlpha (0.18f + 0.5f * stringsLevel));
-            g.strokePath (wave, juce::PathStrokeType (3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            // Straight segments (no curved stroke flattening) — one pass.
             g.setColour (accent.withAlpha (0.25f + 0.65f * stringsLevel));
-            g.strokePath (wave, juce::PathStrokeType (1.1f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            g.strokePath (wave, juce::PathStrokeType (1.2f));
         }
     }
 
     // --- central material icon with halo ------------------------------------
     const juce::Rectangle<float> iconRect (cx - iconR, cy - iconR, iconR * 2.0f, iconR * 2.0f);
 
-    // Halo glow, brighter as energy rises.
-    g.setGradientFill (juce::ColourGradient (accent.withAlpha (0.30f + 0.45f * level),
-                                             cx, cy,
-                                             juce::Colours::transparentBlack,
-                                             cx + iconR * 1.7f, cy + iconR * 1.7f,
-                                             true));
+    // Halo glow, brighter as energy rises (flat fill — gradients are expensive).
+    g.setColour (accent.withAlpha (0.18f + 0.30f * level));
     g.fillEllipse (iconRect.expanded (iconR * 1.1f));
 
     g.setColour (accent.withAlpha (0.9f));
     g.drawEllipse (iconRect, 1.5f);
 
-    // Two-pass icon for a neon glow.
-    drawMaterialIcon (g, id, iconRect.reduced (iconR * 0.30f), accent.withAlpha (0.28f), 5.0f);
     drawMaterialIcon (g, id, iconRect.reduced (iconR * 0.30f), accent.withAlpha (0.95f), 2.0f);
 
     // --- particles (on top) --------------------------------------------------
-    // Constellations: join nearby particles with faint blue links.
-    const float linkDist  = 55.0f;
-    const float linkDist2 = linkDist * linkDist;
-    for (size_t i = 0; i < particles.size(); ++i)
-    {
-        for (size_t j = i + 1; j < particles.size(); ++j)
-        {
-            const float dx = particles[i].x - particles[j].x;
-            const float dy = particles[i].y - particles[j].y;
-            const float d2 = dx * dx + dy * dy;
-            if (d2 < linkDist2)
-            {
-                const float a = (1.0f - std::sqrt (d2) / linkDist) * 0.38f;
-                g.setColour (juce::Colour (0xff6ea8fe).withAlpha (a));
-                g.drawLine (particles[i].x, particles[i].y, particles[j].x, particles[j].y, 0.8f);
-            }
-        }
-    }
-
-    // Particle dots + motion trails (website palette: crimson -> blue -> violet).
     const juce::Colour crimson (0xffff2a2a);
     const juce::Colour blue    (0xff6ea8fe);
     const juce::Colour violet  (0xff7a5cff);
@@ -266,13 +242,6 @@ void ResonanceVisualizer::paint (juce::Graphics& g)
         const juce::Colour c = pt.hue < 0.5f
             ? crimson.interpolatedWith (blue,   pt.hue * 2.0f).withAlpha (a)
             : blue.interpolatedWith    (violet, (pt.hue - 0.5f) * 2.0f).withAlpha (a);
-
-        g.setColour (c.withAlpha (a * 0.45f));
-        const float spd = std::sqrt (pt.vx * pt.vx + pt.vy * pt.vy);
-        if (spd > 0.01f)
-            g.drawLine (pt.x, pt.y,
-                        pt.x - pt.vx / spd * pt.size * 2.5f,
-                        pt.y - pt.vy / spd * pt.size * 2.5f, 1.0f);
 
         g.setColour (c);
         g.fillEllipse (pt.x - pt.size * 0.5f, pt.y - pt.size * 0.5f, pt.size, pt.size);

@@ -27,8 +27,8 @@ namespace
         Knob (juce::AudioProcessorValueTreeState& state,
               const juce::String& paramId,
               const juce::String& name,
-              std::function<juce::String (float)> textFn)
-            : stateRef (state), param (paramId), textFn (textFn)
+              std::function<juce::String (float)> textFnIn)
+            : stateRef (state), param (paramId), textFn (textFnIn)
         {
             slider.setSliderStyle (juce::Slider::Rotary);
             slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
@@ -39,12 +39,12 @@ namespace
             addAndMakeVisible (slider);
 
             nameLabel.setText (name, juce::dontSendNotification);
-            nameLabel.setFont (juce::Font (11.0f, juce::Font::plain));
+            nameLabel.setFont (juce::FontOptions (11.0f, juce::Font::plain));
             nameLabel.setColour (juce::Label::textColourId, SympathyLookAndFeel::muted);
             nameLabel.setJustificationType (juce::Justification::centred);
             addAndMakeVisible (nameLabel);
 
-            valueLabel.setFont (juce::Font (11.0f, juce::Font::bold));
+            valueLabel.setFont (juce::FontOptions (11.0f, juce::Font::bold));
             valueLabel.setColour (juce::Label::textColourId, SympathyLookAndFeel::text);
             valueLabel.setJustificationType (juce::Justification::centred);
             addAndMakeVisible (valueLabel);
@@ -52,7 +52,7 @@ namespace
             attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
                 state, paramId, slider);
 
-            // Keep the value label in sync with the parameter at all times —
+            // Keep the value label in sync with the parameter at all times â€”
             // both user drags and host automation / preset loads.
             stateRef.addParameterListener (param, this);
             refreshLabel();
@@ -61,7 +61,7 @@ namespace
         ~Knob() override { stateRef.removeParameterListener (param, this); }
 
         // parameterChanged can fire on the audio thread (host automation) or at
-        // mouse-move rate during a drag — marshal + coalesce the label update to
+        // mouse-move rate during a drag â€” marshal + coalesce the label update to
         // the message thread so we never touch the Label off-thread.
         void parameterChanged (const juce::String&, float) override { triggerAsyncUpdate(); }
 
@@ -100,7 +100,7 @@ namespace
         explicit Panel (const juce::String& title)
         {
             titleLabel.setText (title, juce::dontSendNotification);
-            titleLabel.setFont (juce::Font (14.0f, juce::Font::bold));
+            titleLabel.setFont (juce::FontOptions (14.0f, juce::Font::bold));
             titleLabel.setColour (juce::Label::textColourId, SympathyLookAndFeel::accent);
             titleLabel.setJustificationType (juce::Justification::centred);
             addAndMakeVisible (titleLabel);
@@ -155,7 +155,7 @@ namespace
                               col, sel ? 2.2f : 1.6f);
 
             g.setColour (sel ? SympathyLookAndFeel::text : SympathyLookAndFeel::muted);
-            g.setFont (juce::Font (10.5f, sel ? juce::Font::bold : juce::Font::plain));
+            g.setFont (juce::FontOptions (10.5f, sel ? juce::Font::bold : juce::Font::plain));
             g.drawText (materialName (id), labelArea, juce::Justification::centred, false);
         }
 
@@ -262,7 +262,7 @@ namespace
                 g.drawRoundedRectangle (r.reduced (0.5f), 7.0f, 1.0f);
             }
 
-            g.setFont (juce::Font (10.0f, sel ? juce::Font::bold : juce::Font::plain));
+            g.setFont (juce::FontOptions (10.0f, sel ? juce::Font::bold : juce::Font::plain));
             g.setColour (sel ? SympathyLookAndFeel::text : SympathyLookAndFeel::muted);
             g.drawText (name, r, juce::Justification::centred, false);
         }
@@ -291,7 +291,7 @@ namespace
     public:
         explicit RefractVisualizer (juce::AudioProcessorValueTreeState& st) : state (st)
         {
-            startTimerHz (20);
+            startTimerHz (12);
         }
 
         ~RefractVisualizer() override { stopTimer(); }
@@ -450,7 +450,7 @@ public:
         title = std::make_unique<HoloTitle> ("SYMPATHY", 42.0f, true);
 
         subtitle.setText ("PHYSICAL MODELING RESONATOR", juce::dontSendNotification);
-        subtitle.setFont (juce::Font (12.0f, juce::Font::bold));
+        subtitle.setFont (juce::FontOptions (12.0f, juce::Font::bold));
         subtitle.setColour (juce::Label::textColourId, SympathyLookAndFeel::muted);
         subtitle.setJustificationType (juce::Justification::centred);
 
@@ -659,11 +659,10 @@ public:
 // ===========================================================================
 SympathyAudioProcessorEditor::SympathyAudioProcessorEditor (SympathyAudioProcessor& p)
     : AudioProcessorEditor (&p)
-    , processor (p)
 {
     setLookAndFeel (&lookAndFeel);
 
-    impl = std::make_unique<Impl> (processor);
+    impl = std::make_unique<Impl> (p);
     impl->attachTo (*this);
 
     setResizable (true, true);
@@ -678,11 +677,9 @@ SympathyAudioProcessorEditor::~SympathyAudioProcessorEditor()
 
 void SympathyAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    const auto b = getLocalBounds().toFloat();
-    g.setGradientFill (juce::ColourGradient (
-        SympathyLookAndFeel::background.brighter (0.05f), b.getCentreX(), b.getCentreY(),
-        SympathyLookAndFeel::background, b.getWidth() * 0.65f, b.getHeight() * 0.65f, true));
-    g.fillAll();
+    // Flat fill: a full-window radial gradient is re-rasterised on every
+    // repaint and is a notable GPU cost on Windows (Direct2D).
+    g.fillAll (SympathyLookAndFeel::background);
 }
 
 void SympathyAudioProcessorEditor::resized()
