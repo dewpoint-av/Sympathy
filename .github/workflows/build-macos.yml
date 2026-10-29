@@ -170,12 +170,16 @@ jobs:
             echo "=== Signing $BUNDLE ==="
             # Sign every Mach-O binary inside-out (no entitlements — plugins
             # inherit host capabilities; empty hardened-runtime is all we need).
-            find "$BUNDLE" -type f -perm +111 -exec file {} \; 2>/dev/null \
-              | grep "Mach-O" | cut -d: -f1 | while read -r f; do
+            # `file` on a universal binary prints a line PER ARCHITECTURE, so we
+            # use find's path for signing and `file` only to filter (never to
+            # derive the path).
+            while IFS= read -r f; do
+              if file "$f" | grep -q "Mach-O"; then
                 echo "  binary: $f"
                 codesign --force --options runtime --timestamp \
                   --sign "$SIGNING_IDENTITY" --keychain "$KEYCHAIN_PATH" "$f"
-              done
+              fi
+            done < <(find "$BUNDLE" -type f -perm +111 2>/dev/null)
             codesign --force --deep --options runtime --timestamp \
               --sign "$SIGNING_IDENTITY" --keychain "$KEYCHAIN_PATH" "$BUNDLE"
             codesign --verify --deep --strict --verbose=2 "$BUNDLE"
