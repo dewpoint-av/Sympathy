@@ -87,8 +87,14 @@ jobs:
               echo "::error::${NAME} decoded too small (${SZ} bytes) — secret is empty or corrupted"
               exit 1
             fi
-            if ! openssl pkcs12 -in "$RAW" -passin pass:"$PWD" -nokeys -noout 2>/dev/null; then
+            # Verify with the SAME OpenSSL we re-encode with. macOS's system
+            # `openssl` is LibreSSL and cannot read modern Apple-exported p12s
+            # (PBES2/AES), which makes the password check fail spuriously.
+            if ! $OSSL pkcs12 -in "$RAW" -passin pass:"$PWD" -legacy -nokeys -noout 2>"$RUNNER_TEMP/${NAME}_verify.log"; then
               echo "::error::${NAME} password verification failed"
+              echo "---- OpenSSL output ----"
+              cat "$RUNNER_TEMP/${NAME}_verify.log"
+              echo "------------------------"
               exit 1
             fi
             mkdir -p "$TMPD"
