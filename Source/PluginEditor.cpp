@@ -443,6 +443,7 @@ public:
     std::unique_ptr<RefractPowerButton> refractPower;
     std::unique_ptr<RefractVisualizer> refractVisual;
     std::vector<std::unique_ptr<RefractFxButton>> refractFxButtons;
+    std::unique_ptr<RefractFxButton> autoGainToggle;
 
     void build()
     {
@@ -502,6 +503,7 @@ public:
         globalKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "input", "INPUT", gainText));
         globalKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "mix", "MIX", pctText));
         globalKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "output", "OUTPUT", gainText));
+        autoGainToggle = std::make_unique<RefractFxButton> ("autoGain", "AUTO GAIN", processor.getParameters());
 
         // --- refract (super unison multi-FX) --------------------------------
         refractPanel = std::make_unique<Panel> ("REFRACTION - SUPER UNISON");
@@ -557,6 +559,7 @@ public:
             stringsPanel->addAndMakeVisible (*k);
 
         root.addAndMakeVisible (*globalPanel);
+        globalPanel->addAndMakeVisible (*autoGainToggle);
         for (auto& k : globalKnobs)
             globalPanel->addAndMakeVisible (*k);
 
@@ -633,6 +636,9 @@ public:
 
         auto gb = globalPanel->getLocalBounds().reduced (12);
         gb.removeFromTop (30);
+        auto toggleRow = gb.removeFromTop (26);
+        autoGainToggle->setBounds (toggleRow.removeFromLeft (toggleRow.getWidth() / 2).reduced (0, 2));
+        gb.removeFromTop (8);
         layoutKnobs (globalKnobs, 4, gb, 8, 0);
 
         // Refract panel: power + orb on the left, modes + knobs on the right.

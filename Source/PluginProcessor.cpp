@@ -47,6 +47,8 @@ SympathyAudioProcessor::SympathyAudioProcessor()
                 0.0f, 1.0f, 0.5f),
             std::make_unique<juce::AudioParameterFloat> ("output", "Output",
                 0.0f, 2.0f, 1.0f),
+            std::make_unique<juce::AudioParameterBool> ("autoGain", "Auto Gain",
+                true),
             std::make_unique<juce::AudioParameterBool> ("refractOn", "Refraction",
                 false),
             std::make_unique<juce::AudioParameterBool> ("refractUnison", "Refraction Unison",
@@ -172,6 +174,7 @@ void SympathyAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     p.input         = param ("input");
     p.mix           = param ("mix");
     p.output        = param ("output");
+    p.autoGain      = param ("autoGain") > 0.5f;
 
     engine.setParams (p);
 

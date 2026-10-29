@@ -80,6 +80,7 @@ namespace sympathy
         float input          = 1.0f;     // 0..2 (excitation drive)
         float mix            = 0.5f;     // 0..1 dry/wet
         float output         = 1.0f;     // 0..2
+        bool  autoGain       = true;     // compensate wet loudness to match dry
 
         bool operator== (const Params& o) const
         {
@@ -96,7 +97,8 @@ namespace sympathy
                 && exciter       == o.exciter
                 && input         == o.input
                 && mix           == o.mix
-                && output        == o.output;
+                && output        == o.output
+                && autoGain      == o.autoGain;
         }
     };
 
@@ -289,6 +291,37 @@ namespace sympathy
     };
 
     // -----------------------------------------------------------------------
+    // Optional auto makeup gain: matches the processed loudness to the dry
+    // input so resonant boosts/cuts don't change the overall level.
+    // -----------------------------------------------------------------------
+    class GainCompensator
+    {
+    public:
+        void prepare (double fs) { coeff = static_cast<float> (1.0 - std::exp (-1.0 / (0.15 * fs))); reset(); }
+        void reset() { inLvl = outLvl = 0.0f; gain = 1.0f; }
+
+        float process (float dryMag, float wetMag)
+        {
+            inLvl  += coeff * (dryMag - inLvl);
+            outLvl += coeff * (wetMag - outLvl);
+
+            float target = 1.0f;
+            if (outLvl > 1.0e-4f && inLvl > 1.0e-4f)
+                target = inLvl / outLvl;
+
+            target = std::clamp (target, 0.25f, 4.0f);   // ±12 dB
+            gain += coeff * (target - gain);
+            return gain;
+        }
+
+    private:
+        float coeff = 0.0f;
+        float inLvl = 0.0f;
+        float outLvl = 0.0f;
+        float gain = 1.0f;
+    };
+
+    // -----------------------------------------------------------------------
     // Top-level engine.
     // -----------------------------------------------------------------------
     class ResonatorEngine
@@ -321,6 +354,7 @@ namespace sympathy
         NoiseSource noise[kNumChannels] { { 0x9E3779B9u }, { 0x85EBCA6Bu } };
         RefractEngine refract;
         StereoLimiter limiter;
+        GainCompensator agc;
 
         std::atomic<float> level { 0.0f };
         float meter = 0.0f;   // audio-thread-only smoothing state

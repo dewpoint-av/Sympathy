@@ -172,6 +172,7 @@ namespace sympathy
             s.prepare (sr, maxBlockSize);
         refract.prepare (sr, maxBlockSize);
         limiter.prepare (sr);
+        agc.prepare (sr);
         vizInputBuf.assign (kVizSize, 0.0f);
         vizWrite.store (0);
         updateAll (sr);
@@ -187,6 +188,7 @@ namespace sympathy
             s.reset();
         refract.reset();
         limiter.reset();
+        agc.reset();
         vizWrite.store (0);
         meter = 0.0f;
         level.store (0.0f);
@@ -244,8 +246,19 @@ namespace sympathy
             const float absR = std::fabs (wetR);
             maxWet = std::max (maxWet, std::max (absL, absR));
 
-            float lo = (((1.0f - p.mix) * l + p.mix * wetL) + refL) * p.output;
-            float ro = (((1.0f - p.mix) * r + p.mix * wetR) + refR) * p.output;
+            // Auto gain: match processed loudness (wet + refract) to the dry input.
+            float makeup = 1.0f;
+            if (p.autoGain)
+            {
+                const float dryMag = std::max (std::fabs (l), std::fabs (r));
+                const float procMag = std::max (std::fabs (wetL + refL), std::fabs (wetR + refR));
+                makeup = agc.process (dryMag, procMag);
+            }
+
+            const float wetMixL = (p.mix * wetL + refL) * makeup;
+            const float wetMixR = (p.mix * wetR + refR) * makeup;
+            float lo = ((1.0f - p.mix) * l + wetMixL) * p.output;
+            float ro = ((1.0f - p.mix) * r + wetMixR) * p.output;
             limiter.process (lo, ro);
             outL[i] = lo;
             outR[i] = ro;

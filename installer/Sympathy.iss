@@ -1,9 +1,9 @@
-; Sympathy — Inno Setup installer
+﻿; Sympathy â€” Inno Setup installer
 ; Packages the CLAP and the VST3 bundle to their standard system-wide
 ; locations. Run build.bat first so build\dist\ is populated.
 
 #define MyAppName "Sympathy"
-#define MyAppVersion "1.2.3"
+#define MyAppVersion "1.3.0"
 #define MyAppPublisher "Dewpoint AV"
 #define MyAppURL "https://dewpoint.live"
 
