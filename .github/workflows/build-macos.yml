@@ -87,14 +87,30 @@ jobs:
               echo "::error::${NAME} decoded too small (${SZ} bytes) — secret is empty or corrupted"
               exit 1
             fi
+
+            # --- password diagnostics (never echo the password itself) ------
+            local PWD_LEN=${#PWD}
+            local PWD_TRIMMED
+            PWD_TRIMMED=$(printf '%s' "$PWD" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+            echo "${NAME}: password secret is ${PWD_LEN} characters"
+            if [ -z "$PWD" ]; then
+              echo "::error::${NAME} password secret is EMPTY"
+            elif [ "${#PWD_TRIMMED}" -ne "$PWD_LEN" ]; then
+              echo "::warning::${NAME} password secret has leading/trailing whitespace (${#PWD_TRIMMED} chars after trim) — re-paste it without spaces/newlines"
+            fi
+
             # Verify with the SAME OpenSSL we re-encode with. macOS's system
             # `openssl` is LibreSSL and cannot read modern Apple-exported p12s
             # (PBES2/AES), which makes the password check fail spuriously.
             if ! $OSSL pkcs12 -in "$RAW" -passin pass:"$PWD" -legacy -nokeys -noout 2>"$RUNNER_TEMP/${NAME}_verify.log"; then
-              echo "::error::${NAME} password verification failed"
+              echo "::error::${NAME} password verification failed — MACOS_CERTIFICATE_PWD does not match the password set when the .p12 was exported"
               echo "---- OpenSSL output ----"
               cat "$RUNNER_TEMP/${NAME}_verify.log"
               echo "------------------------"
+              echo "How to fix: re-export the certificate + private key from Keychain Access as a .p12"
+              echo "with a KNOWN password (the one you type into the export dialog — not your login"
+              echo "keychain password and not your Apple ID password), then set MACOS_CERTIFICATE_PWD"
+              echo "to exactly that password."
               exit 1
             fi
             mkdir -p "$TMPD"
