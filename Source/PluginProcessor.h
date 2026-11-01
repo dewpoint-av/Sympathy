@@ -4,6 +4,8 @@
 
 #include "dsp/ResonatorEngine.h"
 
+#include <array>
+
 class SympathyAudioProcessor : public juce::AudioProcessor
 {
 public:
@@ -42,8 +44,16 @@ public:
     sympathy::ResonatorEngine& getEngine() { return engine; }
 
 private:
+    void updateMidi (const juce::MidiBuffer& midi);
+    void updateHostTime();
+
     juce::AudioProcessorValueTreeState parameters;
     sympathy::ResonatorEngine engine;
+
+    // Held notes in the order played; the audio thread only.
+    std::array<int, 16> heldNotes {};
+    int numHeld = 0;
+    sympathy::MidiState midiState;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SympathyAudioProcessor)
 };

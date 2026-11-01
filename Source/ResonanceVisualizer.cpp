@@ -39,10 +39,10 @@ void ResonanceVisualizer::update()
     level = proc.getEngine().getLevel();
 
     auto& state = proc.getParameters();
-    material      = juce::roundToInt (state.getRawParameterValue ("material")->load());
+    material      = juce::roundToInt (state.getRawParameterValue ("resType")->load());
     decay         = state.getRawParameterValue ("decay")->load();
     brightness    = state.getRawParameterValue ("brightness")->load();
-    inharmonicity = state.getRawParameterValue ("inharmonicity")->load();
+    inharmonicity = std::fabs (state.getRawParameterValue ("inharmonicity")->load());
     bodyLevel     = state.getRawParameterValue ("body")->load();
     stringsLevel  = state.getRawParameterValue ("strings")->load();
     exciter       = state.getRawParameterValue ("exciter")->load();

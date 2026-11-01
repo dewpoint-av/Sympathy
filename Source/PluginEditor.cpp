@@ -17,6 +17,12 @@ namespace
     juce::String gainText (float v) { return juce::String (v, 2)  + "x"; }
     juce::String lfoText  (float v) { return juce::String (v, 2)  + " Hz"; }
     juce::String voiceText(float v) { return juce::String (v, 0)  + "x"; }
+    juce::String freqText (float v) { return v >= 1000.0f ? juce::String (v / 1000.0f, 1) + " kHz" : juce::String (v, 0) + " Hz"; }
+    juce::String bipolarText (float v) { return (v >= 0.0f ? "+" : "") + juce::String (v * 100.0f, 0) + " %"; }
+    juce::String octText  (float v) { return juce::String (v, 1) + " oct"; }
+    juce::String degText  (float v) { return juce::String (v, 0) + juce::String (juce::CharPointer_UTF8 ("\xc2\xb0")); }
+    juce::String centText (float v) { return (v >= 0.0f ? "+" : "") + juce::String (v, 0) + " ct"; }
+    juce::String semiText (float v) { return (v >= 0.0f ? "+" : "") + juce::String (v, v == std::floor (v) ? 0 : 1) + " st"; }
 
     // ---- a labelled rotary knob bound to a parameter -----------------------
     class Knob : public juce::Component,
@@ -66,6 +72,9 @@ namespace
         void parameterChanged (const juce::String&, float) override { triggerAsyncUpdate(); }
 
         void handleAsyncUpdate() override { refreshLabel(); }
+
+        void setName (const juce::String& name) { nameLabel.setText (name, juce::dontSendNotification); }
+        void refresh() { refreshLabel(); }
 
         void resized() override
         {
@@ -147,12 +156,14 @@ namespace
                 g.drawRoundedRectangle (iconArea.reduced (2.5f), 9.0f, 1.0f);
             }
 
+            // Sized from the height, so wide cells don't squash the icon.
+            const float iconH = iconArea.getHeight() - 8.0f;
+            const auto iconBox = iconArea.withSizeKeepingCentre (juce::jmin (iconArea.getWidth() - 8.0f, iconH * 1.5f), iconH);
+
             // Two-pass icon for a subtle glow when selected.
             if (sel)
-                drawMaterialIcon (g, id, iconArea.reduced (iconArea.getWidth() * 0.16f),
-                                  col.withAlpha (0.30f), 4.0f);
-            drawMaterialIcon (g, id, iconArea.reduced (iconArea.getWidth() * 0.16f),
-                              col, sel ? 2.2f : 1.6f);
+                drawMaterialIcon (g, id, iconBox, col.withAlpha (0.30f), 4.0f);
+            drawMaterialIcon (g, id, iconBox, col, sel ? 2.2f : 1.6f);
 
             g.setColour (sel ? SympathyLookAndFeel::text : SympathyLookAndFeel::muted);
             g.setFont (juce::FontOptions (10.5f, sel ? juce::Font::bold : juce::Font::plain));
@@ -161,13 +172,13 @@ namespace
 
         void mouseDown (const juce::MouseEvent&) override
         {
-            state.getParameter ("material")->setValueNotifyingHost (
+            state.getParameter ("resType")->setValueNotifyingHost (
                 static_cast<float> (static_cast<int> (id)) / 6.0f);
         }
 
         bool selected() const
         {
-            const int idx = juce::roundToInt (state.getRawParameterValue ("material")->load());
+            const int idx = juce::roundToInt (state.getRawParameterValue ("resType")->load());
             return idx == static_cast<int> (id);
         }
 
@@ -284,6 +295,83 @@ namespace
         juce::AudioProcessorValueTreeState& state;
     };
 
+    // ---- one option of a Choice parameter, as a button ------------------------
+    class ChoiceButton : public juce::Component
+    {
+    public:
+        ChoiceButton (const juce::String& paramId, int optionIndex, const juce::String& label,
+                      juce::AudioProcessorValueTreeState& st)
+            : param (paramId), option (optionIndex), name (label), state (st)
+        {
+        }
+
+        void paint (juce::Graphics& g) override
+        {
+            const bool sel = selected();
+            auto r = getLocalBounds().toFloat().reduced (1.5f);
+            const juce::Colour col = sel ? SympathyLookAndFeel::accent : SympathyLookAndFeel::muted;
+
+            g.setColour (sel ? col.withAlpha (0.15f) : SympathyLookAndFeel::panel);
+            g.fillRoundedRectangle (r, 7.0f);
+            g.setColour (sel ? col.withAlpha (0.65f) : SympathyLookAndFeel::border);
+            g.drawRoundedRectangle (r.reduced (0.5f), 7.0f, sel ? 1.5f : 1.0f);
+
+            g.setFont (juce::FontOptions (10.0f, sel ? juce::Font::bold : juce::Font::plain));
+            g.setColour (sel ? SympathyLookAndFeel::text : SympathyLookAndFeel::muted);
+            g.drawText (name, r, juce::Justification::centred, false);
+        }
+
+        void mouseDown (const juce::MouseEvent&) override
+        {
+            if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (state.getParameter (param)))
+                p->setValueNotifyingHost (p->convertTo0to1 (static_cast<float> (option)));
+        }
+
+        bool selected() const
+        {
+            return juce::roundToInt (state.getRawParameterValue (param)->load()) == option;
+        }
+
+    private:
+        juce::String param;
+        int option;
+        juce::String name;
+        juce::AudioProcessorValueTreeState& state;
+    };
+
+    // ---- a Choice parameter as a menu, with a small caption --------------------
+    class ChoiceMenu : public juce::Component
+    {
+    public:
+        ChoiceMenu (juce::AudioProcessorValueTreeState& state, const juce::String& paramId, const juce::String& caption)
+        {
+            if (auto* p = dynamic_cast<juce::AudioParameterChoice*> (state.getParameter (paramId)))
+                box.addItemList (p->choices, 1);
+            box.setJustificationType (juce::Justification::centred);
+            addAndMakeVisible (box);
+
+            label.setText (caption, juce::dontSendNotification);
+            label.setFont (juce::FontOptions (10.0f, juce::Font::plain));
+            label.setColour (juce::Label::textColourId, SympathyLookAndFeel::muted);
+            label.setJustificationType (juce::Justification::centredLeft);
+            addAndMakeVisible (label);
+
+            attachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, paramId, box);
+        }
+
+        void resized() override
+        {
+            auto b = getLocalBounds();
+            label.setBounds (b.removeFromTop (14));
+            box.setBounds (b.withSizeKeepingCentre (b.getWidth(), juce::jmin (b.getHeight(), 24)));
+        }
+
+    private:
+        juce::ComboBox box;
+        juce::Label label;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> attachment;
+    };
+
     // ---- animated dispersion orb -------------------------------------------
     class RefractVisualizer : public juce::Component,
                               private juce::Timer
@@ -395,27 +483,28 @@ public:
         : processor (proc)
     {
         build();
+        for (const auto* id : watchedParams())
+            processor.getParameters().addParameterListener (id, this);
+        refreshDynamic();
     }
 
     ~Impl() override
     {
-        processor.getParameters().removeParameterListener ("material", this);
-        processor.getParameters().removeParameterListener ("refractOn", this);
-        for (const auto* id : { "refractUnison", "refractHarmonizer", "refractBandpass",
-                                "refractDistort", "refractBitcrush", "refractComb" })
+        for (const auto* id : watchedParams())
             processor.getParameters().removeParameterListener (id, this);
     }
 
-    // Repaint is marshalled to the message thread (parameterChanged may arrive
-    // on the audio thread during host automation).
+    static std::vector<const char*> watchedParams()
+    {
+        return { "resType", "quality", "refractOn", "refractMode", "refractSource", "refractLfoSync",
+                 "resLfoSync", "autoGain", "filterOn", "midiFreq" };
+    }
+
+    // Marshalled to the message thread (parameterChanged may arrive on the audio
+    // thread during host automation).
     void parameterChanged (const juce::String&, float) override { triggerAsyncUpdate(); }
 
-    void handleAsyncUpdate() override
-    {
-        for (auto& b : materialButtons) b->repaint();
-        if (refractPower != nullptr)  refractPower->repaint();
-        for (auto& b : refractFxButtons) b->repaint();
-    }
+    void handleAsyncUpdate() override { refreshDynamic(); }
 
     SympathyAudioProcessor& processor;
 
@@ -430,23 +519,66 @@ public:
 
     std::vector<std::unique_ptr<MaterialIconButton>> materialButtons;
 
-    std::unique_ptr<Panel> bodyPanel;
-    std::unique_ptr<Panel> stringsPanel;
-    std::unique_ptr<Panel> globalPanel;
-    std::unique_ptr<Panel> refractPanel;
+    std::unique_ptr<Panel> bodyPanel, stereoPanel, stringsPanel, lfoPanel, midiPanel, globalPanel, refractPanel;
 
-    std::vector<std::unique_ptr<Knob>> bodyKnobs;
-    std::vector<std::unique_ptr<Knob>> stringKnobs;
-    std::vector<std::unique_ptr<Knob>> globalKnobs;
-    std::vector<std::unique_ptr<Knob>> refractKnobs;
+    std::vector<std::unique_ptr<Knob>> bodyKnobs, stereoKnobs, stringKnobs, lfoKnobs, midiKnobs, globalKnobs, refractKnobs;
+    std::unique_ptr<Knob> ratioKnob, radiusKnob, openingKnob;
+    Knob* materialKnob = nullptr;
+    Knob* brightKnob = nullptr;
+    Knob* inharmKnob = nullptr;
+    Knob* hitKnob = nullptr;
+    Knob* posLKnob = nullptr;
+    Knob* posRKnob = nullptr;
+    Knob* bleedKnob = nullptr;
+    Knob* primaryKnob = nullptr;
+    Knob* secondaryKnob = nullptr;
+    Knob* refractRateKnob = nullptr;
+    Knob* lfoRateKnob = nullptr;
+    Knob* lfoToPrimaryKnob = nullptr;
 
+    std::unique_ptr<ChoiceButton> qualityEco, qualityHigh, sourceResonator, sourceInput;
     std::unique_ptr<RefractPowerButton> refractPower;
     std::unique_ptr<RefractVisualizer> refractVisual;
-    std::vector<std::unique_ptr<RefractFxButton>> refractFxButtons;
-    std::unique_ptr<RefractFxButton> autoGainToggle;
+    std::vector<std::unique_ptr<ChoiceButton>> refractModeButtons;
+    std::unique_ptr<RefractFxButton> autoGainToggle, filterToggle, midiToggle;
+    std::unique_ptr<ChoiceMenu> algoMenu, chordMenu, refractShapeMenu, refractSyncMenu, refractDivMenu;
+    std::unique_ptr<ChoiceMenu> lfoShapeMenu, lfoSyncMenu, lfoDivMenu, priorityMenu;
+    juce::Rectangle<int> secondarySlot;
+
+    float param (const char* id) const { return processor.getParameters().getRawParameterValue (id)->load(); }
+
+    Knob* addKnob (std::vector<std::unique_ptr<Knob>>& list, const char* id, const char* name,
+                   std::function<juce::String (float)> text)
+    {
+        list.push_back (std::make_unique<Knob> (processor.getParameters(), id, name, std::move (text)));
+        return list.back().get();
+    }
+
+    // The Primary knob's reading depends on the mode.
+    juce::String primaryText (float v) const
+    {
+        switch (juce::roundToInt (param ("refractMode")))
+        {
+            case sympathy::kModeBandpass:   return freqText (40.0f * std::pow (300.0f, v));
+            case sympathy::kModeComb:       return freqText (40.0f * std::pow (200.0f, v));
+            case sympathy::kModeBitcrush:   return juce::String (1.0f / std::pow (2.0f, -6.0f * v), 1) + ":1";
+            case sympathy::kModeDistortion: return "+" + juce::String (36.0f * v, 0) + " dB";
+            case sympathy::kModeHarmonizer: return juce::String (v * v * 1500.0f, 0) + " ms";
+            default:                        return "-";
+        }
+    }
+
+    juce::String secondaryText (float v) const
+    {
+        if (juce::roundToInt (param ("refractMode")) == sympathy::kModeBitcrush)
+            return juce::String (16.0f - 14.0f * v, 0) + " bit";
+        return pctText (v);
+    }
 
     void build()
     {
+        auto& state = processor.getParameters();
+
         // --- header --------------------------------------------------------
         title = std::make_unique<HoloTitle> ("SYMPATHY", 42.0f, true);
 
@@ -465,16 +597,10 @@ public:
         footer.setColour (juce::Label::textColourId, SympathyLookAndFeel::muted);
         footer.setJustificationType (juce::Justification::centred);
 
-        // --- material icon selector ----------------------------------------
+        // --- resonator type selector ---------------------------------------
         for (int i = 0; i < 7; ++i)
-            materialButtons.push_back (std::make_unique<MaterialIconButton> (
-                static_cast<MaterialId> (i), processor.getParameters()));
+            materialButtons.push_back (std::make_unique<MaterialIconButton> (static_cast<MaterialId> (i), state));
 
-        // Repaint the selector whenever the material changes (clicks, host
-        // automation or presets), so the highlighted button always follows.
-        processor.getParameters().addParameterListener ("material", this);
-
-        // --- visualizer -----------------------------------------------------
         visualizer = std::make_unique<ResonanceVisualizer> (processor);
 
         leftSphere = std::make_unique<SpectrogramSphere> (
@@ -484,56 +610,158 @@ public:
             &processor.getEngine().vizInput(),
             [this] { return processor.getEngine().vizWritePos(); });
 
-        // --- panels ---------------------------------------------------------
-        bodyPanel = std::make_unique<Panel> ("RESONANT BODY");
-        bodyKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "tune", "TUNE", hzText));
-        bodyKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "inharmonicity", "INHARM", pctText));
-        bodyKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "decay", "DECAY", secText));
-        bodyKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "brightness", "BRIGHT", pctText));
-        bodyKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "body", "LEVEL", pctText));
+        // --- the object -----------------------------------------------------
+        bodyPanel = std::make_unique<Panel> ("RESONATOR");
+        addKnob (bodyKnobs, "tune", "TUNE", hzText);
+        addKnob (bodyKnobs, "decay", "DECAY", secText);
+        materialKnob = addKnob (bodyKnobs, "materialTone", "MATERIAL", bipolarText);
+        brightKnob   = addKnob (bodyKnobs, "brightness", "BRIGHT", pctText);
+        inharmKnob   = addKnob (bodyKnobs, "inharmonicity", "INHARM", bipolarText);
+        hitKnob      = addKnob (bodyKnobs, "hit", "HIT", pctText);
+        ratioKnob    = std::make_unique<Knob> (state, "ratio", "RATIO", pctText);
+        radiusKnob   = std::make_unique<Knob> (state, "radius", "RADIUS", pctText);
+        openingKnob  = std::make_unique<Knob> (state, "opening", "OPENING", pctText);
+        addKnob (bodyKnobs, "body", "LEVEL", pctText);
+        qualityEco  = std::make_unique<ChoiceButton> ("quality", 0, "ECO", state);
+        qualityHigh = std::make_unique<ChoiceButton> ("quality", 1, "HIGH", state);
 
+        // --- stereo ---------------------------------------------------------
+        stereoPanel = std::make_unique<Panel> ("STEREO");
+        addKnob (stereoKnobs, "width", "WIDTH", pctText);
+        addKnob (stereoKnobs, "spread", "SPREAD", pctText);
+        posLKnob = addKnob (stereoKnobs, "posL", "POS L", pctText);
+        posRKnob = addKnob (stereoKnobs, "posR", "POS R", pctText);
+
+        // --- strings --------------------------------------------------------
         stringsPanel = std::make_unique<Panel> ("STRINGS");
-        stringKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "strings", "LEVEL", pctText));
-        stringKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "stringTune", "TUNE", stText));
-        stringKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "stringDamp", "DAMP", pctText));
-        stringKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "stringDecay", "DECAY", secText));
+        addKnob (stringKnobs, "strings", "LEVEL", pctText);
+        addKnob (stringKnobs, "stringTune", "TUNE", stText);
+        addKnob (stringKnobs, "stringDamp", "DAMP", pctText);
+        addKnob (stringKnobs, "stringDecay", "DECAY", secText);
 
+        // --- pitch LFO ------------------------------------------------------
+        lfoPanel = std::make_unique<Panel> ("PITCH LFO");
+        addKnob (lfoKnobs, "resLfoAmount", "DEPTH", semiText);
+        lfoRateKnob = addKnob (lfoKnobs, "resLfoRate", "RATE", lfoText);
+        addKnob (lfoKnobs, "resLfoPhase", "PHASE", degText);
+        lfoShapeMenu = std::make_unique<ChoiceMenu> (state, "resLfoShape", "SHAPE");
+        lfoSyncMenu  = std::make_unique<ChoiceMenu> (state, "resLfoSync", "SYNC");
+        lfoDivMenu   = std::make_unique<ChoiceMenu> (state, "resLfoDiv", "DIVISION");
+
+        // --- MIDI -----------------------------------------------------------
+        midiPanel = std::make_unique<Panel> ("MIDI");
+        midiToggle = std::make_unique<RefractFxButton> ("midiFreq", "FOLLOW", state);
+        priorityMenu = std::make_unique<ChoiceMenu> (state, "midiPriority", "PRIORITY");
+        addKnob (midiKnobs, "midiTranspose", "TRANS", semiText);
+        addKnob (midiKnobs, "midiFine", "FINE", centText);
+        addKnob (midiKnobs, "pbRange", "BEND", stText);
+        addKnob (midiKnobs, "offDecay", "OFF DEC", pctText);
+
+        // --- global ---------------------------------------------------------
         globalPanel = std::make_unique<Panel> ("GLOBAL");
-        globalKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "exciter", "EXCITER", pctText));
-        globalKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "input", "INPUT", gainText));
-        globalKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "mix", "MIX", pctText));
-        globalKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "output", "OUTPUT", gainText));
-        autoGainToggle = std::make_unique<RefractFxButton> ("autoGain", "AUTO GAIN", processor.getParameters());
+        addKnob (globalKnobs, "exciter", "EXCITER", pctText);
+        addKnob (globalKnobs, "input", "INPUT", gainText);
+        addKnob (globalKnobs, "filterFreq", "FILTER", freqText);
+        addKnob (globalKnobs, "filterBw", "BW", octText);
+        bleedKnob = addKnob (globalKnobs, "bleed", "BLEED", pctText);
+        addKnob (globalKnobs, "mix", "MIX", pctText);
+        addKnob (globalKnobs, "output", "OUTPUT", gainText);
+        autoGainToggle = std::make_unique<RefractFxButton> ("autoGain", "AUTO GAIN", state);
+        filterToggle   = std::make_unique<RefractFxButton> ("filterOn", "INPUT FILTER", state);
 
-        // --- refract (super unison multi-FX) --------------------------------
-        refractPanel = std::make_unique<Panel> ("REFRACTION - SUPER UNISON");
-        refractPower = std::make_unique<RefractPowerButton> (processor.getParameters());
-        refractVisual = std::make_unique<RefractVisualizer> (processor.getParameters());
+        // --- refraction -----------------------------------------------------
+        refractPanel = std::make_unique<Panel> ("REFRACTION");
+        refractPower = std::make_unique<RefractPowerButton> (state);
+        refractVisual = std::make_unique<RefractVisualizer> (state);
+        sourceResonator = std::make_unique<ChoiceButton> ("refractSource", 0, "RESONATOR", state);
+        sourceInput     = std::make_unique<ChoiceButton> ("refractSource", 1, "INPUT", state);
 
-        refractFxButtons.push_back (std::make_unique<RefractFxButton> (
-            "refractUnison", "UNISON", processor.getParameters()));
-        refractFxButtons.push_back (std::make_unique<RefractFxButton> (
-            "refractHarmonizer", "HARMONIZER", processor.getParameters()));
-        refractFxButtons.push_back (std::make_unique<RefractFxButton> (
-            "refractBandpass", "BANDPASS", processor.getParameters()));
-        refractFxButtons.push_back (std::make_unique<RefractFxButton> (
-            "refractDistort", "DISTORT", processor.getParameters()));
-        refractFxButtons.push_back (std::make_unique<RefractFxButton> (
-            "refractBitcrush", "BITCRUSH", processor.getParameters()));
-        refractFxButtons.push_back (std::make_unique<RefractFxButton> (
-            "refractComb", "COMB", processor.getParameters()));
+        const char* modeNames[sympathy::kNumRefractModes] = { "UNISON", "BANDPASS", "COMB", "BITCRUSHER", "DISTORTION", "HARMONIZER" };
+        for (int i = 0; i < sympathy::kNumRefractModes; ++i)
+            refractModeButtons.push_back (std::make_unique<ChoiceButton> ("refractMode", i, modeNames[i], state));
 
-        refractKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "refractVoices", "VOICES", voiceText));
-        refractKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "refractAmount", "AMOUNT", pctText));
-        refractKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "refractMix", "MIX", pctText));
-        refractKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "refractSpread", "SPREAD", pctText));
-        refractKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "refractLfoRate", "LFO RATE", lfoText));
-        refractKnobs.push_back (std::make_unique<Knob> (processor.getParameters(), "refractLfoDepth", "LFO DEPTH", pctText));
+        addKnob (refractKnobs, "refractVoices", "VOICES", voiceText);
+        addKnob (refractKnobs, "refractAmount", "AMOUNT", pctText);
+        primaryKnob   = addKnob (refractKnobs, "refractPrimary", "CUTOFF", [this] (float v) { return primaryText (v); });
+        secondaryKnob = addKnob (refractKnobs, "refractSecondary", "RESONANCE", [this] (float v) { return secondaryText (v); });
+        addKnob (refractKnobs, "refractSpread", "SPREAD", pctText);
+        addKnob (refractKnobs, "refractMix", "MIX", pctText);
+        addKnob (refractKnobs, "refractHp", "HP IN", freqText);
+        addKnob (refractKnobs, "refractLp", "LP OUT", freqText);
+        refractRateKnob  = addKnob (refractKnobs, "refractLfoRate", "LFO RATE", lfoText);
+        addKnob (refractKnobs, "refractLfoDepth", "LFO>AMT", bipolarText);
+        lfoToPrimaryKnob = addKnob (refractKnobs, "refractLfoPrimary", "LFO>CTRL", bipolarText);
 
-        processor.getParameters().addParameterListener ("refractOn", this);
-        for (const auto* id : { "refractUnison", "refractHarmonizer", "refractBandpass",
-                                "refractDistort", "refractBitcrush", "refractComb" })
-            processor.getParameters().addParameterListener (id, this);
+        algoMenu  = std::make_unique<ChoiceMenu> (state, "refractAlgo", "ALGORITHM");
+        chordMenu = std::make_unique<ChoiceMenu> (state, "refractChord", "CHORD");
+        refractShapeMenu = std::make_unique<ChoiceMenu> (state, "refractLfoShape", "LFO SHAPE");
+        refractSyncMenu  = std::make_unique<ChoiceMenu> (state, "refractLfoSync", "LFO SYNC");
+        refractDivMenu   = std::make_unique<ChoiceMenu> (state, "refractLfoDiv", "LFO DIVISION");
+    }
+
+    // Controls follow the selected type and mode: irrelevant ones dim or swap out.
+    void refreshDynamic()
+    {
+        const auto dim = [] (juce::Component* c, bool active)
+        {
+            c->setEnabled (active);
+            c->setAlpha (active ? 1.0f : 0.32f);
+        };
+
+        const int type = juce::roundToInt (param ("resType"));
+        const bool waveguide = sympathy::isWaveguide (type);
+        for (Knob* k : { materialKnob, brightKnob, inharmKnob, hitKnob, posLKnob, posRKnob, bleedKnob })
+            dim (k, ! waveguide);
+        dim (qualityEco.get(), ! waveguide);
+        dim (qualityHigh.get(), ! waveguide);
+
+        ratioKnob->setVisible (! waveguide);
+        dim (ratioKnob.get(), type == sympathy::kMembrane || type == sympathy::kPlate);
+        radiusKnob->setVisible (waveguide);
+        dim (openingKnob.get(), type == sympathy::kPipe);
+
+        const int mode = juce::roundToInt (param ("refractMode"));
+        const char* primaryName = "CONTROL";
+        const char* secondaryName = "";
+        switch (mode)
+        {
+            case sympathy::kModeBandpass:   primaryName = "CUTOFF";  secondaryName = "RESONANCE"; break;
+            case sympathy::kModeComb:       primaryName = "CUTOFF";  secondaryName = "RESONANCE"; break;
+            case sympathy::kModeBitcrush:   primaryName = "DOWNSAMP"; secondaryName = "BITS";     break;
+            case sympathy::kModeDistortion: primaryName = "DRIVE";   break;
+            case sympathy::kModeHarmonizer: primaryName = "SPRAY";   break;
+            default: break;
+        }
+        primaryKnob->setName (primaryName);
+        primaryKnob->refresh();
+        secondaryKnob->setName (secondaryName);
+        secondaryKnob->refresh();
+        dim (primaryKnob, mode != sympathy::kModeUnison);
+        dim (lfoToPrimaryKnob, mode != sympathy::kModeUnison);
+
+        const bool usesSecondary = mode == sympathy::kModeBandpass || mode == sympathy::kModeComb || mode == sympathy::kModeBitcrush;
+        secondaryKnob->setVisible (usesSecondary);
+        algoMenu->setVisible (mode == sympathy::kModeDistortion);
+        chordMenu->setVisible (mode == sympathy::kModeHarmonizer);
+
+        const bool refractSynced = juce::roundToInt (param ("refractLfoSync")) != 0;
+        dim (refractRateKnob, ! refractSynced);
+        dim (refractDivMenu.get(), refractSynced);
+
+        const bool lfoSynced = juce::roundToInt (param ("resLfoSync")) != 0;
+        dim (lfoRateKnob, ! lfoSynced);
+        dim (lfoDivMenu.get(), lfoSynced);
+
+        for (auto& b : materialButtons) b->repaint();
+        for (auto& b : refractModeButtons) b->repaint();
+        qualityEco->repaint();
+        qualityHigh->repaint();
+        sourceResonator->repaint();
+        sourceInput->repaint();
+        refractPower->repaint();
+        autoGainToggle->repaint();
+        filterToggle->repaint();
+        midiToggle->repaint();
     }
 
     void attachTo (juce::Component& root)
@@ -550,33 +778,56 @@ public:
 
         root.addAndMakeVisible (*visualizer);
 
-        root.addAndMakeVisible (*bodyPanel);
-        for (auto& k : bodyKnobs)
-            bodyPanel->addAndMakeVisible (*k);
+        const auto panelWith = [&] (Panel& panel, std::vector<std::unique_ptr<Knob>>& knobs)
+        {
+            root.addAndMakeVisible (panel);
+            for (auto& k : knobs)
+                panel.addAndMakeVisible (*k);
+        };
 
-        root.addAndMakeVisible (*stringsPanel);
-        for (auto& k : stringKnobs)
-            stringsPanel->addAndMakeVisible (*k);
+        panelWith (*bodyPanel, bodyKnobs);
+        bodyPanel->addChildComponent (*ratioKnob);
+        bodyPanel->addChildComponent (*radiusKnob);
+        bodyPanel->addAndMakeVisible (*openingKnob);
+        bodyPanel->addAndMakeVisible (*qualityEco);
+        bodyPanel->addAndMakeVisible (*qualityHigh);
 
-        root.addAndMakeVisible (*globalPanel);
+        panelWith (*stereoPanel, stereoKnobs);
+        panelWith (*stringsPanel, stringKnobs);
+
+        panelWith (*lfoPanel, lfoKnobs);
+        lfoPanel->addAndMakeVisible (*lfoShapeMenu);
+        lfoPanel->addAndMakeVisible (*lfoSyncMenu);
+        lfoPanel->addAndMakeVisible (*lfoDivMenu);
+
+        panelWith (*midiPanel, midiKnobs);
+        midiPanel->addAndMakeVisible (*midiToggle);
+        midiPanel->addAndMakeVisible (*priorityMenu);
+
+        panelWith (*globalPanel, globalKnobs);
         globalPanel->addAndMakeVisible (*autoGainToggle);
-        for (auto& k : globalKnobs)
-            globalPanel->addAndMakeVisible (*k);
+        globalPanel->addAndMakeVisible (*filterToggle);
 
-        root.addAndMakeVisible (*refractPanel);
+        panelWith (*refractPanel, refractKnobs);
         refractPanel->addAndMakeVisible (*refractPower);
         refractPanel->addAndMakeVisible (*refractVisual);
-        for (auto& b : refractFxButtons)
+        refractPanel->addAndMakeVisible (*sourceResonator);
+        refractPanel->addAndMakeVisible (*sourceInput);
+        for (auto& b : refractModeButtons)
             refractPanel->addAndMakeVisible (*b);
-        for (auto& k : refractKnobs)
-            refractPanel->addAndMakeVisible (*k);
+        refractPanel->addChildComponent (*algoMenu);
+        refractPanel->addChildComponent (*chordMenu);
+        refractPanel->addAndMakeVisible (*refractShapeMenu);
+        refractPanel->addAndMakeVisible (*refractSyncMenu);
+        refractPanel->addAndMakeVisible (*refractDivMenu);
+
+        refreshDynamic();
     }
 
     void resized (juce::Rectangle<int> area)
     {
         auto b = area;
 
-        // Footer strip.
         footer.setBounds (b.removeFromBottom (18));
         b.removeFromBottom (2);
 
@@ -593,72 +844,131 @@ public:
         title->setBounds (header.removeFromTop (54));
         subtitle.setBounds (header);
 
-        b.removeFromTop (6);
+        b.removeFromTop (4);
 
-        // Material icon selector row
-        auto matRow = b.removeFromTop (66);
+        // Resonator type row
+        auto matRow = b.removeFromTop (62);
         const int cellW = matRow.getWidth() / 7;
         for (auto& mb : materialButtons)
             mb->setBounds (matRow.removeFromLeft (cellW));
 
-        b.removeFromTop (8);
+        b.removeFromTop (6);
 
-        // Visualizer fills the middle; refract + panels sit at the bottom.
-        const int panelH   = 168;
+        const int gap = 10;
+        const int rowH = 146;
         const int refractH = 186;
-        const int gap      = 12;
 
-        visualizer->setBounds (b.removeFromTop (
-            juce::jmax (60, b.getHeight() - refractH - panelH - 2 * gap)));
+        visualizer->setBounds (b.removeFromTop (juce::jmax (60, b.getHeight() - refractH - 2 * rowH - 3 * gap)));
         b.removeFromTop (gap);
 
+        // Resonator + stereo
+        auto top = b.removeFromTop (rowH);
+        stereoPanel->setBounds (top.removeFromRight (static_cast<int> (top.getWidth() * 0.29f)));
+        top.removeFromRight (gap);
+        bodyPanel->setBounds (top);
+        b.removeFromTop (gap);
+
+        auto bb = bodyPanel->getLocalBounds().reduced (10);
+        bb.removeFromTop (22);
+        auto qualityColumn = bb.removeFromRight (56);
+        const int qh = juce::jmin (32, qualityColumn.getHeight() / 2);
+        qualityHigh->setBounds (qualityColumn.removeFromTop (qh));
+        qualityEco->setBounds (qualityColumn.removeFromTop (qh));
+        bb.removeFromRight (6);
+
+        // Tune, Decay, Material, Bright, Inharm, Hit, Ratio or Radius, Opening, Level.
+        constexpr int kBodySlots = 9;
+        const int bw = bb.getWidth() / kBodySlots;
+        const auto slot = [&] (int i) { return juce::Rectangle<int> (bb.getX() + i * bw, bb.getY(), bw, bb.getHeight()); };
+        for (int i = 0; i < 6; ++i)
+            bodyKnobs[static_cast<size_t> (i)]->setBounds (slot (i));
+        ratioKnob->setBounds (slot (6));
+        radiusKnob->setBounds (slot (6));
+        openingKnob->setBounds (slot (7));
+        bodyKnobs[6]->setBounds (slot (8));
+
+        auto sb = stereoPanel->getLocalBounds().reduced (10);
+        sb.removeFromTop (22);
+        layoutKnobs (stereoKnobs, 4, sb, 4, 0);
+
+        // Refraction
         refractPanel->setBounds (b.removeFromTop (refractH));
         b.removeFromTop (gap);
 
-        const int bodyW = juce::jmax (280, static_cast<int> (b.getWidth() * 0.40f));
-        const int sideW = (b.getWidth() - bodyW - 2 * gap) / 2;
-
-        bodyPanel->setBounds (b.removeFromLeft (bodyW));
-        b.removeFromLeft (gap);
-        stringsPanel->setBounds (b.removeFromLeft (sideW));
-        b.removeFromLeft (gap);
-        globalPanel->setBounds (b);
-
-        // Body panel: 5 knobs in a single row.
-        auto bb = bodyPanel->getLocalBounds().reduced (12);
-        bb.removeFromTop (30);
-        layoutKnobs (bodyKnobs, 5, bb, 6, 0);
-
-        // Strings / global: single row (bigger, more legible knobs).
-        auto sb = stringsPanel->getLocalBounds().reduced (12);
-        sb.removeFromTop (30);
-        layoutKnobs (stringKnobs, 4, sb, 8, 0);
-
-        auto gb = globalPanel->getLocalBounds().reduced (12);
-        gb.removeFromTop (30);
-        auto toggleRow = gb.removeFromTop (26);
-        autoGainToggle->setBounds (toggleRow.removeFromLeft (toggleRow.getWidth() / 2).reduced (0, 2));
-        gb.removeFromTop (8);
-        layoutKnobs (globalKnobs, 4, gb, 8, 0);
-
-        // Refract panel: power + orb on the left, modes + knobs on the right.
-        auto rb = refractPanel->getLocalBounds().reduced (12);
-        rb.removeFromTop (30);
-        auto left = rb.removeFromLeft (118);
+        auto rb = refractPanel->getLocalBounds().reduced (10);
+        rb.removeFromTop (22);
+        auto left = rb.removeFromLeft (112);
         refractPower->setBounds (left.removeFromTop (44));
-        refractVisual->setBounds (left.reduced (6, 2));
+        left.removeFromTop (4);
+        auto sourceRow = left.removeFromTop (46);
+        sourceResonator->setBounds (sourceRow.removeFromTop (23));
+        sourceInput->setBounds (sourceRow);
+        refractVisual->setBounds (left.reduced (2, 2));
+        rb.removeFromLeft (10);
 
-        auto modeRow = rb.removeFromTop (40);
-        const int mgap = 6;
-        const int mcell = (modeRow.getWidth() - mgap * (static_cast<int> (refractFxButtons.size()) - 1))
-                        / static_cast<int> (refractFxButtons.size());
-        for (auto& mb : refractFxButtons)
+        auto menus = rb.removeFromRight (118);
+        const int mh = menus.getHeight() / 3;
+        refractShapeMenu->setBounds (menus.removeFromTop (mh).reduced (0, 1));
+        refractSyncMenu->setBounds (menus.removeFromTop (mh).reduced (0, 1));
+        refractDivMenu->setBounds (menus.reduced (0, 1));
+        rb.removeFromRight (8);
+
+        auto modeRow = rb.removeFromTop (34);
+        const int mgap = 5;
+        const int numModes = static_cast<int> (refractModeButtons.size());
+        const int mcell = (modeRow.getWidth() - mgap * (numModes - 1)) / numModes;
+        for (auto& mb : refractModeButtons)
         {
             mb->setBounds (modeRow.removeFromLeft (mcell));
             modeRow.removeFromLeft (mgap);
         }
+        rb.removeFromTop (2);
 
-        layoutKnobs (refractKnobs, 6, rb, 6, 0);
+        layoutKnobs (refractKnobs, 11, rb, 2, 0);
+        secondarySlot = secondaryKnob->getBounds();
+        algoMenu->setBounds (secondarySlot.withSizeKeepingCentre (secondarySlot.getWidth() - 2, 44));
+        chordMenu->setBounds (algoMenu->getBounds());
+
+        // Bottom row: strings, pitch LFO, MIDI, global.
+        const int stringsW = b.getWidth() * 20 / 100;
+        const int lfoW     = b.getWidth() * 20 / 100;
+        const int midiW    = b.getWidth() * 24 / 100;
+
+        stringsPanel->setBounds (b.removeFromLeft (stringsW));
+        b.removeFromLeft (gap);
+        lfoPanel->setBounds (b.removeFromLeft (lfoW));
+        b.removeFromLeft (gap);
+        midiPanel->setBounds (b.removeFromLeft (midiW));
+        b.removeFromLeft (gap);
+        globalPanel->setBounds (b);
+
+        auto stringArea = stringsPanel->getLocalBounds().reduced (10);
+        stringArea.removeFromTop (22);
+        layoutKnobs (stringKnobs, 4, stringArea, 2, 0);
+
+        auto lb = lfoPanel->getLocalBounds().reduced (10);
+        lb.removeFromTop (22);
+        auto lfoMenus = lb.removeFromRight (lb.getWidth() * 40 / 100);
+        const int lm = lfoMenus.getHeight() / 3;
+        lfoShapeMenu->setBounds (lfoMenus.removeFromTop (lm));
+        lfoSyncMenu->setBounds (lfoMenus.removeFromTop (lm));
+        lfoDivMenu->setBounds (lfoMenus);
+        lb.removeFromRight (4);
+        layoutKnobs (lfoKnobs, 3, lb, 0, 0);
+
+        auto mb = midiPanel->getLocalBounds().reduced (10);
+        mb.removeFromTop (22);
+        auto midiTop = mb.removeFromTop (34);
+        midiToggle->setBounds (midiTop.removeFromLeft (midiTop.getWidth() * 55 / 100).withSizeKeepingCentre (midiTop.getWidth() * 55 / 100 - 4, 26));
+        priorityMenu->setBounds (midiTop);
+        layoutKnobs (midiKnobs, 4, mb, 2, 0);
+
+        auto gb = globalPanel->getLocalBounds().reduced (10);
+        gb.removeFromTop (22);
+        auto toggleRow = gb.removeFromTop (28);
+        autoGainToggle->setBounds (toggleRow.removeFromLeft (toggleRow.getWidth() / 2).reduced (2, 1));
+        filterToggle->setBounds (toggleRow.reduced (2, 1));
+        layoutKnobs (globalKnobs, 7, gb, 1, 0);
     }
 };
 
@@ -672,8 +982,8 @@ SympathyAudioProcessorEditor::SympathyAudioProcessorEditor (SympathyAudioProcess
     impl->attachTo (*this);
 
     setResizable (true, true);
-    setResizeLimits (680, 680, 1500, 1000);
-    setSize (960, 840);
+    setResizeLimits (1040, 800, 1700, 1250);
+    setSize (1180, 900);
 }
 
 SympathyAudioProcessorEditor::~SympathyAudioProcessorEditor()

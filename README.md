@@ -11,46 +11,69 @@ macOS.
 
 ## What's inside
 
-Sympathy blends two physical models in parallel:
+Audio excites a physical object, one per channel, alongside a pair of strings:
 
-- **Resonant body** — a bank of up to 64 two-pole *modal resonators*. Their
-  frequencies follow a material-dependent inharmonic distribution (a harmonic
-  string, a stiff metal bar, a dense plate, …). Each mode has its own decay, so
-  low partials ring longer than high ones, exactly like a struck object.
-- **Strings** — a pair of *Karplus-Strong* waveguide strings (fractional delay +
-  damping + feedback), tuned to the root pitch and a musical interval above it.
+- **Seven resonators.** Beam, Marimba, String, Membrane and Plate are modal banks of
+  up to 64 two-pole resonators, using each object's real partial series and mode
+  shapes. Pipe and Tube are waveguides; a closed pipe has only odd harmonics.
+- **Strings.** A pair of Karplus-Strong strings at the root and a chosen interval.
+- **Stereo imaging.** The left and right objects can be detuned (Spread) and heard
+  from different points (Pos L / Pos R), which makes real stereo from a mono input.
+- **Refraction.** A unison effect of 1-8 voices running one Mode each: Unison,
+  Bandpass, Comb, Bitcrusher, Distortion or Harmonizer. Amount spreads the Mode's main
+  control across the voices. It can take the resonator's output or the raw input.
+- **MIDI.** Notes set the tuning, with pitch bend and note-off damping.
 
-An optional **exciter** injects filtered noise into the object so it can ring on
-its own — bowed pads, sympathetic drones, ambient beds — even with a silent
-input.
+An optional **exciter** injects noise so the object can ring with a silent input.
 
 ## Parameters
 
-| Group   | Parameter      | Range            | Meaning |
-|---------|----------------|------------------|---------|
-| Body    | Material       | String/Wood/Metal/Glass/Plate/Body/Synth | Mode distribution & damping profile |
-| Body    | Tune           | 20 Hz – 2 kHz    | Root pitch of the object |
-| Body    | Inharmonicity  | 0 – 100 %        | Harmonic → stiff/bar-like spacing |
-| Body    | Decay          | 50 ms – 20 s     | Ring time |
-| Body    | Brightness     | 0 – 100 %        | High-partial energy |
-| Body    | Level          | 0 – 100 %        | Body wet amount |
-| Strings | Level          | 0 – 100 %        | String wet amount |
-| Strings | Tune           | −12 – +24 st     | Interval of the second string |
-| Strings | Damping        | 0 – 100 %        | String brightness |
-| Strings | Decay          | 50 ms – 20 s     | String ring time |
-| Global  | Exciter        | 0 – 100 %        | Self-noise drive |
-| Global  | Input          | 0 – 2×           | Excitation drive |
-| Global  | Mix            | 0 – 100 %        | Dry / wet |
-| Global  | Output         | 0 – 2×           | Master gain |
+| Group      | Parameter | Range | Meaning |
+|------------|-----------|-------|---------|
+| Resonator  | Type | 7 types | The object being struck |
+| Resonator  | Quality | Eco / High | 16 or 64 modes (modal types) |
+| Resonator  | Tune | 20 Hz - 2 kHz | Fundamental |
+| Resonator  | Decay | 50 ms - 20 s | Ring time at the fundamental |
+| Resonator  | Material | -100 - +100 % | Lows ring longest .. highs ring longest |
+| Resonator  | Bright | 0 - 100 % | Level of the high partials |
+| Resonator  | Inharm | -100 - +100 % | Pulls partials down .. pushes them up |
+| Resonator  | Hit | 0 - 100 % | Strike point, centre .. edge |
+| Resonator  | Ratio | 20 - 100 % | Plate/Membrane proportions; 100 % is square/round |
+| Resonator  | Radius | 0 - 100 % | Pipe/Tube bore: decay, highs, and pitch at the very top |
+| Resonator  | Opening | 0 - 100 % | Pipe: closed at one end .. open at both |
+| Resonator  | Level | 0 - 100 % | Object level |
+| Stereo     | Width | 0 - 100 % | Mono .. each resonator on its own side |
+| Stereo     | Spread | 0 - 100 % | Detunes L and R, up to +-50 cents |
+| Stereo     | Pos L / Pos R | 0 - 100 % | Listening point on each object |
+| Strings    | Level, Tune, Damp, Decay | | As before; Spread and MIDI also apply |
+| Pitch LFO  | Depth | 0 - 12 st | Pitch modulation |
+| Pitch LFO  | Rate, Sync, Division | 0.02 - 50 Hz, or tempo | Speed |
+| Pitch LFO  | Shape | 7 shapes | Includes stepped and smooth noise |
+| Pitch LFO  | Phase | 0 - 360 deg | Right channel's offset |
+| MIDI       | Follow | on/off | Notes set the tuning |
+| MIDI       | Priority | Last / Low | Which held note wins |
+| MIDI       | Trans, Fine, Bend | +-48 st, +-100 ct, 0-24 st | Offsets and pitch-bend range |
+| MIDI       | Off Decay | 0 - 100 % | Note-offs ignored .. mute at once |
+| Refraction | Source | Resonator / Input | What it processes |
+| Refraction | Mode | 6 modes | The effect each voice runs |
+| Refraction | Voices, Amount | 1-8, 0-100 % | Unison size; detune, width and control spread |
+| Refraction | Primary | by mode | Cutoff, Down Sample, Drive or Spray |
+| Refraction | Secondary | by mode | Resonance, Bits, Algorithm or Chord |
+| Refraction | Spread, Mix | 0 - 100 % | Stereo width; refracted level |
+| Refraction | HP In, LP Out | 20 Hz - 20 kHz | Filters around the effect |
+| Refraction | LFO | 6 shapes, Hz or tempo | To Amount and to the Primary control, bipolar |
+| Global     | Exciter | 0 - 100 % | Self-noise drive |
+| Global     | Input | 0 - 2x | Excitation drive |
+| Global     | Input Filter, BW | on/off, 0.1 - 8 oct | Band-pass before the object |
+| Global     | Bleed | 0 - 100 % | Dry added to the wet, to restore highs |
+| Global     | Mix | 0 - 100 % | Dry/wet. Lowering it stops new input but lets tails ring |
+| Global     | Output, Auto Gain | 0 - 2x, on/off | Master gain; level matching |
 
-The interface is holographic and animated. A central material icon sits inside a
-radial **modal resonance corona** (one glowing spike per body mode), surrounded
-by audio-reactive particles, expanding energy rings and two vibrating
-Karplus-Strong strings. A row of vector **mode icons** (String, Wood, Metal,
-Glass, Plate, Body, Synth) selects the material, and every control reshapes the
-visual — decay lengthens the particle trails, brightness intensifies the glow,
-inharmonicity scatters the spikes, the body/string levels feed their elements,
-and the exciter drives emission even with a silent input.
+Sessions from 1.x load with the closest settings, and stereo stays neutral. They won't
+be identical, since the old materials were one shared formula rather than real objects.
+
+The animated interface shows the object's partials as a radial corona around its icon,
+with audio-reactive particles and rings.
 
 ## Requirements
 
@@ -146,16 +169,17 @@ Then rescan plugins in your DAW.
 
 ```
 Source/
-  PluginProcessor.h/.cpp     JUCE processor, parameter tree, audio glue
-  PluginEditor.h/.cpp        GUI (panels, knobs, material selector, spectrum)
-  CustomLookAndFeel.h        dark "acoustic" theme
+  PluginProcessor.h/.cpp     parameters, 1.x session migration, MIDI, audio glue
+  PluginEditor.h/.cpp        GUI
+  CustomLookAndFeel.h        theme
   dsp/
-    ResonatorEngine.h/.cpp   the DSP engine (JUCE-free, self-contained)
+    ResonatorEngine.h/.cpp   top level: objects, strings, stereo, mix
+    PhysicalModels.h/.cpp    ModalBank + Waveguide: the seven objects
+    RefractEngine.h/.cpp     Refraction
+    Lfo.h                    shared LFO
 ```
 
-The engine is deliberately independent of JUCE: `ModalBank` (parallel two-pole
-resonators), `StringBank` (Karplus-Strong), and a `NoiseSource` exciter, summed
-per channel for natural stereo.
+The DSP is independent of JUCE.
 
 ## License
 

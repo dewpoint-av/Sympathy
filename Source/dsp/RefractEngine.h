@@ -1,17 +1,22 @@
 #pragma once
 
 /*
-  Sympathy — "Refraction" super-unison multi-FX engine.
+  Sympathy — Refraction: a unison multi-effect.
 
-  The incoming signal is duplicated into up to 8 stereo voices. Every stage is
-  independently toggleable and runs in a fixed chain order:
+  The input is split into 1-8 stereo voices, each slightly detuned, and each voice runs
+  its own copy of one Mode effect. Amount does the signature move: it spreads the Mode's
+  main control across the voices, centred on the value set by the Primary knob, so one
+  sound fans out into many.
 
-      Unison (chorus detune) -> Harmonizer (pitch shift) -> Bandpass
-        -> Distortion -> Bitcrusher -> Comb
+    In -> high-pass -> detuned voices -> one Mode per voice -> pan -> low-pass -> out
 
-  so multiple textures can be stacked on the same voice stack. Gain is staged
-  (normalised by the number of active stages) and the main output limiter
-  catches any residual peaks, keeping stacked modes from clipping too hard.
+  Modes and their (Primary / Secondary) controls:
+    Unison      (none)
+    Bandpass    Cutoff / Resonance
+    Comb        Cutoff / Resonance (feedback, up to self-oscillation)
+    Bitcrusher  Down Sample / Bit Depth
+    Distortion  Drive, with 4 algorithms
+    Harmonizer  Spray, with 12 chords
 */
 
 #include <algorithm>
@@ -21,42 +26,41 @@
 #include <cstddef>
 #include <vector>
 
+#include "Lfo.h"
+
 namespace sympathy
 {
     static constexpr int kMaxRefractVoices = 8;
 
+    enum RefractMode : int { kModeUnison = 0, kModeBandpass, kModeComb, kModeBitcrush, kModeDistortion, kModeHarmonizer, kNumRefractModes };
+    enum DistortionAlgo : int { kAlgoTape = 0, kAlgoGermanium, kAlgoSoftBounce, kAlgoSineFolder, kNumDistortionAlgos };
+    static constexpr int kNumChords = 12;
+
     struct RefractParams
     {
-        bool  on       = false;
-        int   voices   = 4;        // 2..8
-        float amount   = 0.40f;    // 0..1 (detune depth + FX dispersion)
-        float mix      = 0.35f;    // 0..1 (refracted level)
-        float spread   = 0.70f;    // 0..1 (stereo width)
-        float lfoRate  = 0.25f;    // Hz (modulates Amount)
-        float lfoDepth = 0.30f;    // 0..1
-
-        bool unison     = true;
-        bool harmonizer = false;
-        bool bandpass   = false;
-        bool distort    = false;
-        bool bitcrush   = false;
-        bool comb       = false;
+        bool  on        = false;
+        int   mode      = kModeUnison;
+        int   voices    = 4;       // 1..8
+        float amount    = 0.40f;   // 0..1  detune, width and spread of the Primary control
+        float primary   = 0.50f;   // 0..1  cutoff / down sample / drive / spray
+        float secondary = 0.50f;   // 0..1  resonance / bit depth
+        int   algorithm = kAlgoTape;
+        int   chord     = 0;
+        float mix       = 0.35f;   // 0..1  refracted level
+        float spread    = 0.70f;   // 0..1  stereo width
+        float hpHz      = 20.0f;
+        float lpHz      = 20000.0f;
+        LfoSettings lfo;
+        float lfoToAmount  = 0.30f;   // -1..1
+        float lfoToPrimary = 0.0f;    // -1..1
 
         bool operator== (const RefractParams& o) const
         {
-            return on         == o.on
-                && voices     == o.voices
-                && amount     == o.amount
-                && mix        == o.mix
-                && spread     == o.spread
-                && lfoRate    == o.lfoRate
-                && lfoDepth   == o.lfoDepth
-                && unison     == o.unison
-                && harmonizer == o.harmonizer
-                && bandpass   == o.bandpass
-                && distort    == o.distort
-                && bitcrush   == o.bitcrush
-                && comb       == o.comb;
+            return on == o.on && mode == o.mode && voices == o.voices && amount == o.amount
+                && primary == o.primary && secondary == o.secondary && algorithm == o.algorithm
+                && chord == o.chord && mix == o.mix && spread == o.spread && hpHz == o.hpHz
+                && lpHz == o.lpHz && lfo == o.lfo && lfoToAmount == o.lfoToAmount
+                && lfoToPrimary == o.lfoToPrimary;
         }
     };
 
@@ -66,68 +70,108 @@ namespace sympathy
         void prepare (double sampleRate, int maxBlockSize);
         void reset();
         void setParams (const RefractParams& p);
+        void setHostTime (const HostTime& t) { hostTime = t; }
         void processSample (float inL, float inR, float& outL, float& outR);
 
         float getLevel() const { return level.load(); }
 
     private:
-        struct Voice
+        // Transposed direct form II biquad.
+        struct Biquad
         {
-            std::array<std::vector<float>, 2> buf;      // raw input history
-            std::array<std::vector<float>, 2> harmBuf;  // harmonizer pitch-shift buffer
-            int writePos     = 0;
-            int harmWritePos = 0;
-
-            float lfoPhase    = 0.0f;
-            float lfoRateMul  = 1.0f;
-            float detuneDepth = 0.0f;   // samples (at amount = 1)
-            float detuneBase  = 0.0f;   // samples
-
-            float panL = 1.0f;
-            float panR = 1.0f;
-
-            // bandpass (direct form II)
-            float b0 = 0.0f, b1 = 0.0f, b2 = 0.0f, a1 = 0.0f, a2 = 0.0f;
+            float b0 = 1.0f, b1 = 0.0f, b2 = 0.0f, a1 = 0.0f, a2 = 0.0f;
             float z1[2] = { 0.0f, 0.0f };
             float z2[2] = { 0.0f, 0.0f };
 
-            // comb (feedforward)
-            float combG     = 0.0f;
-            float combDelay = 0.0f;
-
-            // bitcrusher
-            float hold[2]      = { 0.0f, 0.0f };
-            int   holdCount[2] = { 0, 0 };
-            int   holdLen      = 1;
-            float crushSteps   = 0.0f;
-
-            // distortion
-            float drive = 1.0f;
-
-            // harmonizer
-            float interval   = 0.0f;
-            float ratio      = 1.0f;
-            float readPhase[2] = { 0.0f, 0.0f };
+            void setHighpass (float fs, float hz);
+            void setLowpass (float fs, float hz);
+            void clear() { z1[0] = z1[1] = z2[0] = z2[1] = 0.0f; }
+            float process (int ch, float x)
+            {
+                const float y = b0 * x + z1[ch];
+                z1[ch] = b1 * x - a1 * y + z2[ch];
+                z2[ch] = b2 * x - a2 * y;
+                return y;
+            }
         };
 
-        void  update (double sr);
-        float read (const Voice& v, int ch, float delaySamples) const;
-        float readHarm (const Voice& v, int ch, float delaySamples) const;
-        float bandpass (Voice& v, int ch, float x);
-        float crush (Voice& v, int ch, float x);
-        float harmonize (Voice& v, int ch, float x);
+        // Topology-preserving state-variable filter: stays stable while being swept.
+        struct Svf
+        {
+            float g = 0.1f, k = 1.0f, a1 = 0.0f, a2 = 0.0f, a3 = 0.0f;
+            float ic1[2] = { 0.0f, 0.0f };
+            float ic2[2] = { 0.0f, 0.0f };
+
+            void set (float fs, float hz, float q);
+            float bandpass (int ch, float x);   // unity gain at the centre frequency
+        };
+
+        struct Voice
+        {
+            float lfoPhase = 0.0f, lfoRate = 0.0f;
+            float baseDelay = 0.0f, depth = 0.0f;
+            float panL = 1.0f, panR = 1.0f;
+            float s = 0.0f;                // position in the spread, -1..1
+            float primary = 0.5f;          // this voice's control value
+
+            Svf svf;
+
+            std::array<std::vector<float>, 2> combBuf;
+            int   combWrite = 0;
+            float combDelay = 100.0f;
+            float combG = 0.0f;
+            float combScale = 1.0f;
+            float combLp[2] = { 0.0f, 0.0f };
+
+            float holdValue[2] = { 0.0f, 0.0f };
+            float holdPhase[2] = { 1.0f, 1.0f };
+            float holdInc = 1.0f;
+
+            float drive = 1.0f;
+            float makeup = 1.0f;
+            float prevX[2] = { 0.0f, 0.0f };
+            float prevF[2] = { 0.0f, 0.0f };
+
+            std::array<std::vector<float>, 2> pitchBuf;
+            int   pitchWrite = 0;
+            float pitchPhase = 0.0f;
+            float pitchRatio = 1.0f;
+            float sprayDelay = 0.0f;       // target
+            float sprayNow = 0.0f;         // slewed, so modulating Spray doesn't click
+            float sprayFb = 0.0f;
+            float fbState[2] = { 0.0f, 0.0f };
+        };
+
+        void  update();
+        void  updateVoiceControls();
+        float readInput (int ch, float delay) const;
+        float processComb (Voice& v, int ch, float x);
+        float processCrush (Voice& v, int ch, float x);
+        float processDistortion (Voice& v, int ch, float x);
+        float processHarmonizer (Voice& v, int ch, float x);
+        void  advanceHarmonizer (Voice& v);
 
         double sampleRate = 48000.0;
-        int    maxDelay   = 4096;
-        int    activeVoices = 0;
+        float  fs = 48000.0f;
 
-        float chorusInc   = 0.0f;
-        float amountInc   = 0.0f;
-        float window      = 1024.0f;
-        float globalPhase = 0.0f;
+        std::array<std::vector<float>, 2> input;
+        int inputWrite = 0;
+        int inputSize = 1;
+        int combSize = 1;
+        int pitchSize = 1;
+        float pitchWindow = 2048.0f;
+
+        int activeVoices = 1;
+        int controlCounter = 0;
+        float amountNow = 0.0f;
+        float widthNow = 1.0f;
+        float crushSteps = 256.0f;
         float meter = 0.0f;
 
         RefractParams p;
+        HostTime hostTime;
+        Lfo lfo { 0x2545F491u };
+        Biquad hp, lp;
         std::array<Voice, kMaxRefractVoices> voices;
         std::atomic<float> level { 0.0f };
     };

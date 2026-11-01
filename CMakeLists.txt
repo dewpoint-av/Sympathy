@@ -1,5 +1,5 @@
 ﻿cmake_minimum_required(VERSION 3.21)
-project(Sympathy VERSION 1.3.0)
+project(Sympathy VERSION 2.0.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -28,7 +28,7 @@ juce_add_plugin(Sympathy
     COMPANY_WEBSITE "https://dewpoint.live"
     COMPANY_EMAIL "anthony@dewpoint.live"
     IS_SYNTH FALSE
-    NEEDS_MIDI_INPUT FALSE
+    NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
@@ -62,6 +62,7 @@ target_sources(Sympathy
         Source/ResonanceVisualizer.cpp
         Source/dsp/ResonatorEngine.cpp
         Source/dsp/RefractEngine.cpp
+        Source/dsp/PhysicalModels.cpp
 )
 
 target_include_directories(Sympathy

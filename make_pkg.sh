@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="1.2.3"
+VERSION="$(sed -n 's/^project([A-Za-z0-9_]* VERSION \([0-9.]*\)).*/\1/p' CMakeLists.txt)"
 PAYLOAD="build/pkg-payload"
 OUT="installer/output/Sympathy-${VERSION}-mac.pkg"
 

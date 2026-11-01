@@ -5,54 +5,154 @@ namespace sympathy
     namespace
     {
         constexpr float kPi = 3.14159265358979323846f;
+        constexpr int   kControlInterval = 16;   // samples between control updates
 
-        constexpr float kHarmonizerIntervals[kMaxRefractVoices] = {
-            0.0f, 7.0f, 12.0f, 19.0f, 24.0f, -5.0f, -12.0f, 3.0f
+        float clampF (float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+        // Intervals in semitones. Voices beyond the chord repeat it an octave up.
+        constexpr int kChordSizes[kNumChords] = { 2, 2, 3, 4, 5, 3, 4, 4, 5, 5, 3, 3 };
+        constexpr float kChords[kNumChords][5] = {
+            { 0, 12 },              // Octave
+            { 0, 7 },               // 5
+            { 0, 3, 7 },            // Minor
+            { 0, 3, 7, 10 },        // Minor 7
+            { 0, 3, 7, 10, 14 },    // Minor 9
+            { 0, 4, 7 },            // Major
+            { 0, 4, 7, 10 },        // 7
+            { 0, 4, 7, 11 },        // Major 7
+            { 0, 4, 7, 11, 14 },    // Major 9
+            { 0, 4, 7, 9, 14 },     // 6/9
+            { 0, 2, 7 },            // Sus 2
+            { 0, 5, 7 }             // Sus 4
         };
 
-        float clampF (float v, float lo, float hi)
+        // log(cosh(x)), safe for large |x|.
+        float logCosh (float x)
         {
-            return v < lo ? lo : (v > hi ? hi : v);
+            const float a = std::fabs (x);
+            return a > 8.0f ? a - 0.6931472f : std::log (std::cosh (a));
         }
+
+        constexpr float kGermaniumBias = 0.25f;
+
+        // Waveshapers and their antiderivatives. Evaluating the antiderivative's slope
+        // between samples (ADAA) removes most aliasing with no oversampling or latency.
+        float shape (int algo, float x)
+        {
+            switch (algo)
+            {
+                case kAlgoGermanium:  return std::tanh (x + kGermaniumBias) - std::tanh (kGermaniumBias);
+                case kAlgoSoftBounce: return x / (1.0f + std::fabs (x));
+                case kAlgoSineFolder: return std::sin (x);
+                case kAlgoTape:
+                default:              return std::tanh (x);
+            }
+        }
+
+        float shapeIntegral (int algo, float x)
+        {
+            switch (algo)
+            {
+                case kAlgoGermanium:  return logCosh (x + kGermaniumBias) - x * std::tanh (kGermaniumBias);
+                case kAlgoSoftBounce: return std::fabs (x) - std::log (1.0f + std::fabs (x));
+                case kAlgoSineFolder: return -std::cos (x);
+                case kAlgoTape:
+                default:              return logCosh (x);
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    void RefractEngine::Biquad::setHighpass (float sr, float hz)
+    {
+        const float w0 = 2.0f * kPi * clampF (hz, 5.0f, sr * 0.45f) / sr;
+        const float cw = std::cos (w0), alpha = std::sin (w0) * 0.70710678f;
+        const float a0 = 1.0f + alpha;
+        b0 = ((1.0f + cw) * 0.5f) / a0;
+        b1 = -(1.0f + cw) / a0;
+        b2 = b0;
+        a1 = (-2.0f * cw) / a0;
+        a2 = (1.0f - alpha) / a0;
+    }
+
+    void RefractEngine::Biquad::setLowpass (float sr, float hz)
+    {
+        const float w0 = 2.0f * kPi * clampF (hz, 20.0f, sr * 0.49f) / sr;
+        const float cw = std::cos (w0), alpha = std::sin (w0) * 0.70710678f;
+        const float a0 = 1.0f + alpha;
+        b0 = ((1.0f - cw) * 0.5f) / a0;
+        b1 = (1.0f - cw) / a0;
+        b2 = b0;
+        a1 = (-2.0f * cw) / a0;
+        a2 = (1.0f - alpha) / a0;
+    }
+
+    void RefractEngine::Svf::set (float sr, float hz, float q)
+    {
+        g  = std::tan (kPi * clampF (hz, 15.0f, sr * 0.45f) / sr);
+        k  = 1.0f / q;
+        a1 = 1.0f / (1.0f + g * (g + k));
+        a2 = g * a1;
+        a3 = g * a2;
+    }
+
+    float RefractEngine::Svf::bandpass (int ch, float x)
+    {
+        const float v3 = x - ic2[ch];
+        const float v1 = a1 * ic1[ch] + a2 * v3;
+        const float v2 = ic2[ch] + a2 * ic1[ch] + a3 * v3;
+        ic1[ch] = 2.0f * v1 - ic1[ch];
+        ic2[ch] = 2.0f * v2 - ic2[ch];
+        return k * v1;
     }
 
     // -----------------------------------------------------------------------
     void RefractEngine::prepare (double sr, int /*maxBlockSize*/)
     {
         sampleRate = sr;
-        maxDelay   = static_cast<int> (sr * 0.12) + 256;
-        window     = 0.03f * static_cast<float> (sr);
+        fs = static_cast<float> (sr);
+
+        inputSize = static_cast<int> (sr * 0.05) + 8;
+        for (auto& b : input) b.assign (static_cast<size_t> (inputSize), 0.0f);
+
+        combSize = static_cast<int> (sr / 15.0) + 8;
+        // Longest spray (1.5 s) plus the pitch-shift window.
+        pitchWindow = 0.06f * fs;
+        pitchSize = static_cast<int> (sr * 1.5) + static_cast<int> (pitchWindow) * 2 + 8;
 
         for (auto& v : voices)
         {
-            v.buf[0].assign (static_cast<size_t> (maxDelay), 0.0f);
-            v.buf[1].assign (static_cast<size_t> (maxDelay), 0.0f);
-            v.harmBuf[0].assign (static_cast<size_t> (maxDelay), 0.0f);
-            v.harmBuf[1].assign (static_cast<size_t> (maxDelay), 0.0f);
+            for (auto& b : v.combBuf)  b.assign (static_cast<size_t> (combSize), 0.0f);
+            for (auto& b : v.pitchBuf) b.assign (static_cast<size_t> (pitchSize), 0.0f);
         }
 
         reset();
-        update (sr);
+        update();
     }
 
     void RefractEngine::reset()
     {
+        for (auto& b : input) std::fill (b.begin(), b.end(), 0.0f);
+        inputWrite = 0;
+        hp.clear();
+        lp.clear();
+        lfo.reset();
+        controlCounter = 0;
+
         for (auto& v : voices)
         {
-            std::fill (v.buf[0].begin(), v.buf[0].end(), 0.0f);
-            std::fill (v.buf[1].begin(), v.buf[1].end(), 0.0f);
-            std::fill (v.harmBuf[0].begin(), v.harmBuf[0].end(), 0.0f);
-            std::fill (v.harmBuf[1].begin(), v.harmBuf[1].end(), 0.0f);
-            v.writePos = 0;
-            v.harmWritePos = 0;
-            v.lfoPhase = 0.0f;
-            v.z1[0] = v.z1[1] = v.z2[0] = v.z2[1] = 0.0f;
-            v.hold[0] = v.hold[1] = 0.0f;
-            v.holdCount[0] = v.holdCount[1] = 0;
-            v.readPhase[0] = v.readPhase[1] = 0.0f;
+            for (auto& b : v.combBuf)  std::fill (b.begin(), b.end(), 0.0f);
+            for (auto& b : v.pitchBuf) std::fill (b.begin(), b.end(), 0.0f);
+            v.combWrite = v.pitchWrite = 0;
+            v.pitchPhase = 0.0f;
+            for (int ch = 0; ch < 2; ++ch)
+            {
+                v.svf.ic1[ch] = v.svf.ic2[ch] = 0.0f;
+                v.combLp[ch] = v.holdValue[ch] = v.prevX[ch] = v.prevF[ch] = v.fbState[ch] = 0.0f;
+                v.holdPhase[ch] = 1.0f;
+            }
         }
 
-        globalPhase = 0.0f;
         meter = 0.0f;
         level.store (0.0f);
     }
@@ -62,136 +162,221 @@ namespace sympathy
         if (np == p)
             return;
         p = np;
-        update (sampleRate);
+        update();
     }
 
-    void RefractEngine::update (double sr)
+    void RefractEngine::update()
     {
-        const float fs = static_cast<float> (sr);
-        const int n = std::clamp (p.voices, 2, kMaxRefractVoices);
+        activeVoices = std::clamp (p.voices, 1, kMaxRefractVoices);
+        const int n = activeVoices;
 
-        chorusInc = 0.5f / fs;
-        amountInc = p.lfoRate / fs;
-        window    = 0.03f * fs;
+        hp.setHighpass (fs, p.hpHz);
+        lp.setLowpass (fs, p.lpHz);
 
         for (int i = 0; i < n; ++i)
         {
             Voice& v = voices[static_cast<size_t> (i)];
-            const float t = (n > 1) ? static_cast<float> (i) / static_cast<float> (n - 1) : 0.5f;
-            const float s = t * 2.0f - 1.0f;
+            const float t = n > 1 ? static_cast<float> (i) / static_cast<float> (n - 1) : 0.5f;
+            v.s = n > 1 ? t * 2.0f - 1.0f : 0.0f;
 
-            const float angle = (s * p.spread + 1.0f) * 0.5f * (0.5f * kPi);
-            v.panL = std::cos (angle);
-            v.panR = std::sin (angle);
+            // Short, unequal delays: a unison, not an audible doubling.
+            v.baseDelay = (0.004f + 0.009f * std::fabs (v.s)) * fs;
+            v.depth = (0.0015f + 0.0035f * t) * fs;
+            v.lfoRate = (0.13f + 0.47f * t) / fs;
 
-            v.detuneDepth = (0.002f + 0.012f * (0.35f + 0.65f * t)) * fs;
-            v.detuneBase  = (0.04f + 0.010f * t) * fs;
-            v.lfoRateMul  = 0.6f + 0.8f * t;
-            v.lfoPhase    = s * 0.5f;
-
-            // bandpass
-            const float cutoff = clampF (1000.0f * std::pow (2.0f, p.amount * s * 1.5f),
-                                         40.0f, fs * 0.45f);
-            const float q     = 0.6f + 2.0f * p.amount;
-            const float w0    = 2.0f * kPi * cutoff / fs;
-            const float alpha = std::sin (w0) / (2.0f * q);
-            const float a0    = 1.0f + alpha;
-            v.b0 =  alpha / a0;
-            v.b1 =  0.0f;
-            v.b2 = -alpha / a0;
-            v.a1 = -2.0f * std::cos (w0) / a0;
-            v.a2 =  (1.0f - alpha) / a0;
-
-            // comb
-            v.combG     = 0.55f + 0.35f * p.amount;
-            v.combDelay = (1.0f + 2.0f * t + 3.0f * p.amount) * 0.001f * fs;
-
-            // bitcrusher
-            v.crushSteps = std::pow (2.0f, 4.0f + (1.0f - p.amount) * 10.0f);
-            v.holdLen    = 1 + static_cast<int> (p.amount * 24.0f);
-
-            // distortion
-            v.drive = 1.0f + p.amount * 14.0f * (0.4f + 0.6f * t);
-
-            // harmonizer
-            v.interval = kHarmonizerIntervals[static_cast<size_t> (i)];
-            v.ratio    = std::pow (2.0f, p.amount * v.interval / 12.0f);
+            // Harmonizer interval.
+            const int size = kChordSizes[std::clamp (p.chord, 0, kNumChords - 1)];
+            const int c = std::clamp (p.chord, 0, kNumChords - 1);
+            const float semis = kChords[c][i % size] + 12.0f * static_cast<float> (i / size);
+            v.pitchRatio = std::pow (2.0f, semis / 12.0f);
         }
 
-        activeVoices = n;
+        // Bit depth: secondary 0 = 16 bits .. 1 = 2 bits.
+        crushSteps = std::pow (2.0f, 16.0f - 14.0f * clampF (p.secondary, 0.0f, 1.0f));
+
+        updateVoiceControls();
     }
 
-    float RefractEngine::read (const Voice& v, int ch, float delaySamples) const
+    // Runs at control rate: the LFO, then each voice's own value of the Primary control.
+    void RefractEngine::updateVoiceControls()
     {
-        const auto& buf = v.buf[static_cast<size_t> (ch)];
-        delaySamples = std::clamp (delaySamples, 1.0f, static_cast<float> (maxDelay - 1));
+        lfo.advance (p.lfo, static_cast<double> (kControlInterval) / sampleRate, hostTime);
+        const float l = lfo.value (p.lfo.shape);
 
-        float readPos = static_cast<float> (v.writePos) - delaySamples;
-        if (readPos < 0.0f)
-            readPos += static_cast<float> (maxDelay);
+        amountNow = clampF (p.amount + l * p.lfoToAmount * 0.5f, 0.0f, 1.0f);
+        const float centre = clampF (p.primary + l * p.lfoToPrimary * 0.5f, 0.0f, 1.0f);
 
-        const int i0 = static_cast<int> (readPos);
-        const float frac = readPos - static_cast<float> (i0);
-        const int i1 = (i0 + 1) % maxDelay;
+        // Amount widens the image as well as spreading the voices.
+        widthNow = clampF (p.spread * (0.35f + 0.65f * amountNow), 0.0f, 1.0f);
 
-        return buf[static_cast<size_t> (i0)] * (1.0f - frac)
-             + buf[static_cast<size_t> (i1)] * frac;
+        const float q = 0.7f + 24.0f * clampF (p.secondary, 0.0f, 1.0f) * clampF (p.secondary, 0.0f, 1.0f);
+        const float fb = clampF (p.secondary, 0.0f, 1.0f);
+
+        for (int i = 0; i < activeVoices; ++i)
+        {
+            Voice& v = voices[static_cast<size_t> (i)];
+
+            const float angle = (v.s * widthNow + 1.0f) * 0.25f * kPi;
+            v.panL = std::cos (angle) * 1.41421356f;
+            v.panR = std::sin (angle) * 1.41421356f;
+
+            // The core move: centre + Amount * position in the spread.
+            v.primary = clampF (centre + amountNow * v.s * 0.5f, 0.0f, 1.0f);
+
+            switch (p.mode)
+            {
+                case kModeBandpass:
+                    v.svf.set (fs, 40.0f * std::pow (300.0f, v.primary), q);
+                    break;
+
+                case kModeComb:
+                {
+                    const float hz = 40.0f * std::pow (200.0f, v.primary);
+                    v.combDelay = clampF (fs / hz, 2.0f, static_cast<float> (combSize - 4));
+                    // Past unity at the very top: the loop's soft limit holds a steady tone.
+                    v.combG = fb * 1.06f;
+                    // Keeps a broadband input at about the same level at any resonance.
+                    v.combScale = std::sqrt (std::max (1.0f - v.combG * v.combG, 0.02f));
+                    break;
+                }
+
+                case kModeBitcrush:
+                    // Primary 0 = no reduction .. 1 = 1/64 of the sample rate.
+                    v.holdInc = std::pow (2.0f, -6.0f * v.primary);
+                    break;
+
+                case kModeDistortion:
+                    // 0 .. 36 dB. Louder shapes are pulled back so Drive changes tone more than level.
+                    v.drive = std::pow (10.0f, 1.8f * v.primary);
+                    v.makeup = 1.0f / std::pow (v.drive, 0.55f);
+                    break;
+
+                case kModeHarmonizer:
+                {
+                    // Temporal spread up to 1.5 s. Past the midpoint, feedback brings in the shimmer.
+                    const float pos = 0.5f + 0.5f * v.s;
+                    v.sprayDelay = v.primary * v.primary * pos * 1.5f * fs;
+                    v.sprayFb = clampF ((v.primary - 0.5f) * 1.3f, 0.0f, 0.65f);
+                    break;
+                }
+
+                default:
+                    break;
+            }
+        }
     }
 
-    float RefractEngine::readHarm (const Voice& v, int ch, float delaySamples) const
+    // 4-point Hermite interpolation: keeps the highs that linear interpolation dulls.
+    float RefractEngine::readInput (int ch, float delay) const
     {
-        const auto& buf = v.harmBuf[static_cast<size_t> (ch)];
-        delaySamples = std::clamp (delaySamples, 1.0f, static_cast<float> (maxDelay - 1));
+        const auto& b = input[static_cast<size_t> (ch)];
+        float rp = static_cast<float> (inputWrite) - delay;
+        while (rp < 0.0f) rp += static_cast<float> (inputSize);
 
-        float readPos = static_cast<float> (v.harmWritePos) - delaySamples;
-        if (readPos < 0.0f)
-            readPos += static_cast<float> (maxDelay);
+        const int i1 = static_cast<int> (rp) % inputSize;
+        const float t = rp - std::floor (rp);
+        const int i0 = (i1 + inputSize - 1) % inputSize;
+        const int i2 = (i1 + 1) % inputSize;
+        const int i3 = (i1 + 2) % inputSize;
 
-        const int i0 = static_cast<int> (readPos);
-        const float frac = readPos - static_cast<float> (i0);
-        const int i1 = (i0 + 1) % maxDelay;
-
-        return buf[static_cast<size_t> (i0)] * (1.0f - frac)
-             + buf[static_cast<size_t> (i1)] * frac;
+        const float y0 = b[static_cast<size_t> (i0)], y1 = b[static_cast<size_t> (i1)];
+        const float y2 = b[static_cast<size_t> (i2)], y3 = b[static_cast<size_t> (i3)];
+        const float c1 = 0.5f * (y2 - y0);
+        const float c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
+        const float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
+        return ((c3 * t + c2) * t + c1) * t + y1;
     }
 
-    float RefractEngine::bandpass (Voice& v, int ch, float x)
+    float RefractEngine::processComb (Voice& v, int ch, float x)
     {
-        const float w = x - v.a1 * v.z1[ch] - v.a2 * v.z2[ch];
-        const float y = v.b0 * w + v.b1 * v.z1[ch] + v.b2 * v.z2[ch];
-        v.z2[ch] = v.z1[ch];
-        v.z1[ch] = w;
+        auto& b = v.combBuf[static_cast<size_t> (ch)];
+
+        float rp = static_cast<float> (v.combWrite) - v.combDelay;
+        if (rp < 0.0f) rp += static_cast<float> (combSize);
+        const int i0 = static_cast<int> (rp);
+        const float t = rp - static_cast<float> (i0);
+        const int i1 = (i0 + 1) % combSize;
+        const float delayed = b[static_cast<size_t> (i0)] * (1.0f - t) + b[static_cast<size_t> (i1)] * t;
+
+        // A soft limit inside the loop lets it self-oscillate without running away.
+        v.combLp[ch] += 0.85f * (delayed - v.combLp[ch]);
+        const float fed = std::tanh (x * v.combScale + v.combG * v.combLp[ch]);
+        b[static_cast<size_t> (v.combWrite)] = fed;
+        return fed;
+    }
+
+    float RefractEngine::processCrush (Voice& v, int ch, float x)
+    {
+        v.holdPhase[ch] += v.holdInc;
+        if (v.holdPhase[ch] >= 1.0f)
+        {
+            v.holdPhase[ch] -= std::floor (v.holdPhase[ch]);
+            v.holdValue[ch] = x;
+        }
+        return std::round (v.holdValue[ch] * crushSteps) / crushSteps;
+    }
+
+    float RefractEngine::processDistortion (Voice& v, int ch, float x)
+    {
+        const float in = x * v.drive;
+        const float dx = in - v.prevX[ch];
+        const float integral = shapeIntegral (p.algorithm, in);
+        const float y = std::fabs (dx) > 1.0e-4f
+                      ? (integral - v.prevF[ch]) / dx
+                      : shape (p.algorithm, 0.5f * (in + v.prevX[ch]));
+        v.prevX[ch] = in;
+        v.prevF[ch] = integral;
+        return y * v.makeup;
+    }
+
+    // A two-head pitch shifter. Each head fades in and out on a raised-cosine window and
+    // the heads are half a cycle apart, so a head always wraps while its gain is zero.
+    float RefractEngine::processHarmonizer (Voice& v, int ch, float x)
+    {
+        auto& b = v.pitchBuf[static_cast<size_t> (ch)];
+        b[static_cast<size_t> (v.pitchWrite)] = x + v.fbState[ch] * v.sprayFb;
+
+        const auto readAt = [&] (float delay)
+        {
+            float rp = static_cast<float> (v.pitchWrite) - delay;
+            if (rp < 0.0f) rp += static_cast<float> (pitchSize);
+            const int i0 = static_cast<int> (rp);
+            const float t = rp - static_cast<float> (i0);
+            const int i1 = (i0 + 1) % pitchSize;
+            return b[static_cast<size_t> (i0)] * (1.0f - t) + b[static_cast<size_t> (i1)] * t;
+        };
+
+        float y;
+        if (v.pitchRatio == 1.0f)
+        {
+            y = readAt (v.sprayNow + 1.0f);
+        }
+        else
+        {
+            const float ph1 = v.pitchPhase;
+            float ph2 = ph1 + 0.5f;
+            if (ph2 >= 1.0f) ph2 -= 1.0f;
+
+            const float w1 = std::sin (kPi * ph1);
+            const float w2 = std::sin (kPi * ph2);
+
+            // Raised-cosine weights (w1^2 + w2^2 = 1). Rising pitch reads with a shrinking delay.
+            const float up = v.pitchRatio > 1.0f ? 1.0f - ph1 : ph1;
+            const float up2 = v.pitchRatio > 1.0f ? 1.0f - ph2 : ph2;
+            y = w1 * w1 * readAt (v.sprayNow + 1.0f + up * pitchWindow)
+              + w2 * w2 * readAt (v.sprayNow + 1.0f + up2 * pitchWindow);
+        }
+
+        v.fbState[ch] = std::tanh (y);
         return y;
     }
 
-    float RefractEngine::crush (Voice& v, int ch, float x)
+    void RefractEngine::advanceHarmonizer (Voice& v)
     {
-        if (++v.holdCount[ch] >= v.holdLen)
-        {
-            v.holdCount[ch] = 0;
-            v.hold[ch] = x;
-        }
-        return std::round (v.hold[ch] * v.crushSteps) / v.crushSteps;
-    }
-
-    float RefractEngine::harmonize (Voice& v, int ch, float x)
-    {
-        v.harmBuf[ch][static_cast<size_t> (v.harmWritePos)] = x;
-
-        float& ph = v.readPhase[ch];
-        ph += 1.0f - v.ratio;
-        if (ph >= window) ph -= window;
-        if (ph < 0.0f)    ph += window;
-
-        const float p2  = ph + window * 0.5f;
-        const float p2w = (p2 >= window) ? p2 - window : p2;
-
-        const float fade = ph / window;
-        const float t1 = readHarm (v, ch, v.detuneBase + ph);
-        const float t2 = readHarm (v, ch, v.detuneBase + p2w);
-
-        v.harmWritePos = (v.harmWritePos + 1) % maxDelay;
-        return t1 * (1.0f - fade) + t2 * fade;
+        v.pitchWrite = (v.pitchWrite + 1) % pitchSize;
+        v.sprayNow += 0.0005f * (v.sprayDelay - v.sprayNow);
+        v.pitchPhase += std::fabs (v.pitchRatio - 1.0f) / pitchWindow;
+        if (v.pitchPhase >= 1.0f) v.pitchPhase -= 1.0f;
     }
 
     void RefractEngine::processSample (float inL, float inR, float& outL, float& outR)
@@ -199,66 +384,71 @@ namespace sympathy
         outL = 0.0f;
         outR = 0.0f;
 
-        if (!p.on || p.mix <= 0.0001f || activeVoices < 2)
+        if (!p.on || p.mix <= 0.0001f)
             return;
 
-        globalPhase += amountInc;
-        if (globalPhase >= 1.0f) globalPhase -= 1.0f;
-        const float lfo       = p.lfoDepth * std::sin (2.0f * kPi * globalPhase);
-        const float amountMod = clampF (p.amount + p.amount * lfo, 0.0f, 1.0f);
+        if (--controlCounter <= 0)
+        {
+            controlCounter = kControlInterval;
+            updateVoiceControls();
+        }
 
-        const int n = activeVoices;
+        input[0][static_cast<size_t> (inputWrite)] = hp.process (0, inL);
+        input[1][static_cast<size_t> (inputWrite)] = hp.process (1, inR);
+        inputWrite = (inputWrite + 1) % inputSize;
 
-        // Gain staging: normalise by the number of active stages so stacking
-        // several FX doesn't push the sum too hot.
-        const int nStages = (p.unison ? 1 : 0) + (p.harmonizer ? 1 : 0)
-                          + (p.bandpass ? 1 : 0) + (p.distort ? 1 : 0)
-                          + (p.bitcrush ? 1 : 0) + (p.comb ? 1 : 0);
-        const float stageNorm = 1.0f / std::sqrt (static_cast<float> (std::max (1, nStages)));
+        float accL = 0.0f, accR = 0.0f;
 
-        float accL = 0.0f;
-        float accR = 0.0f;
-
-        for (int i = 0; i < n; ++i)
+        for (int i = 0; i < activeVoices; ++i)
         {
             Voice& v = voices[static_cast<size_t> (i)];
 
-            v.lfoPhase += chorusInc * v.lfoRateMul;
+            v.lfoPhase += v.lfoRate;
             if (v.lfoPhase >= 1.0f) v.lfoPhase -= 1.0f;
 
-            v.buf[0][static_cast<size_t> (v.writePos)] = inL;
-            v.buf[1][static_cast<size_t> (v.writePos)] = inR;
-            v.writePos = (v.writePos + 1) % maxDelay;
+            // A lone voice is the undetuned sound, so 1 voice is a pure Mode effect.
+            const float d = activeVoices == 1
+                          ? v.baseDelay
+                          : v.baseDelay + v.depth * amountNow * (0.5f + 0.5f * std::sin (2.0f * kPi * v.lfoPhase));
 
-            float detL, detR;
-            if (p.unison)
+            float l = readInput (0, d);
+            float r = readInput (1, d);
+
+            switch (p.mode)
             {
-                const float mod = v.detuneBase
-                                + v.detuneDepth * amountMod
-                                  * (0.5f + 0.5f * std::sin (2.0f * kPi * v.lfoPhase));
-                detL = read (v, 0, mod);
-                detR = read (v, 1, mod);
-            }
-            else
-            {
-                detL = inL;
-                detR = inR;
+                case kModeBandpass:
+                    l = v.svf.bandpass (0, l);
+                    r = v.svf.bandpass (1, r);
+                    break;
+                case kModeComb:
+                    l = processComb (v, 0, l);
+                    r = processComb (v, 1, r);
+                    v.combWrite = (v.combWrite + 1) % combSize;
+                    break;
+                case kModeBitcrush:
+                    l = processCrush (v, 0, l);
+                    r = processCrush (v, 1, r);
+                    break;
+                case kModeDistortion:
+                    l = processDistortion (v, 0, l);
+                    r = processDistortion (v, 1, r);
+                    break;
+                case kModeHarmonizer:
+                    l = processHarmonizer (v, 0, l);
+                    r = processHarmonizer (v, 1, r);
+                    advanceHarmonizer (v);
+                    break;
+                default:
+                    break;
             }
 
-            if (p.harmonizer) { detL = harmonize (v, 0, detL); detR = harmonize (v, 1, detR); }
-            if (p.bandpass)   { detL = bandpass (v, 0, detL);  detR = bandpass (v, 1, detR); }
-            if (p.distort)    { detL = std::tanh (v.drive * detL); detR = std::tanh (v.drive * detR); }
-            if (p.bitcrush)   { detL = crush (v, 0, detL);     detR = crush (v, 1, detR); }
-            if (p.comb)       { detL += v.combG * read (v, 0, v.combDelay); detR += v.combG * read (v, 1, v.combDelay); }
-
-            accL += v.panL * detL;
-            accR += v.panR * detR;
+            accL += l * v.panL;
+            accR += r * v.panR;
         }
 
-        const float voiceNorm = 1.0f / std::sqrt (static_cast<float> (n));
-        const float lfoGain   = 1.0f + 0.25f * lfo;
-        outL = accL * voiceNorm * stageNorm * p.mix * lfoGain;
-        outR = accR * voiceNorm * stageNorm * p.mix * lfoGain;
+        const float norm = 1.0f / std::sqrt (static_cast<float> (activeVoices));
+        outL = lp.process (0, accL * norm) * p.mix;
+        outR = lp.process (1, accR * norm) * p.mix;
 
         meter = std::max (std::max (std::fabs (outL), std::fabs (outR)), meter * 0.90f);
         level.store (meter);
