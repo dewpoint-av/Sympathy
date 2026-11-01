@@ -63,6 +63,7 @@ private:
     float mix = 0.5f;
 
     static constexpr int kMaxParticles = 20;
+    static constexpr int kMaxRings = 18;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ResonanceVisualizer)
 };

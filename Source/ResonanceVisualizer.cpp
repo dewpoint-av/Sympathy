@@ -10,6 +10,7 @@ namespace
 ResonanceVisualizer::ResonanceVisualizer (SympathyAudioProcessor& p)
     : proc (p)
 {
+    setOpaque (true);   // central hero over a flat background — paint our own bg
     startTimerHz (12);
 }
 
@@ -78,7 +79,8 @@ void ResonanceVisualizer::update()
     while (ringAccumulator > 0.35f)
     {
         ringAccumulator -= 0.35f;
-        spawnRing();
+        if (static_cast<int> (rings.size()) < kMaxRings)
+            spawnRing();
     }
 
     for (auto& ring : rings)
@@ -132,6 +134,11 @@ void ResonanceVisualizer::spawnRing()
 
 void ResonanceVisualizer::paint (juce::Graphics& g)
 {
+    {
+        auto bg = getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId);
+        g.fillAll (bg.isTransparent() ? juce::Colour (0xff0a0c10) : bg);
+    }
+
     const auto b = getLocalBounds().toFloat();
     const float cx = b.getCentreX();
     const float cy = b.getCentreY();

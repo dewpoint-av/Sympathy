@@ -28,6 +28,13 @@ namespace
 {
     constexpr float kSpherePi = 3.14159265358979323846f;
 
+    // Themed window background (so opaque spheres paint pixel-identical corners).
+    inline juce::Colour spheresBg (juce::Component& c)
+    {
+        auto bg = c.getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId);
+        return bg.isTransparent() ? juce::Colour (0xff0a0c10) : bg;
+    }
+
     // Fills out[] with numBins magnitude values (0..1), linearly mapped to FFT
     // bins 1, 3, 5, ... (i.e. up to ~numBins*2 bins).
     inline void computeSpectrum (const std::vector<float>& audio, int writePos,
@@ -77,6 +84,7 @@ public:
             window[static_cast<size_t> (i)] = 0.5f * (1.0f - std::cos (2.0f * kSpherePi * i / (fftSize - 1)));
         fftBuf.assign (fftSize * 2, 0.0f);
         bins.fill (0.0f);
+        setOpaque (true);   // over a flat background: paint our own, skip parent recomposite
         startTimerHz (10);
     }
 
@@ -92,6 +100,8 @@ public:
 
     void paint (juce::Graphics& g) override
     {
+        g.fillAll (spheresBg (*this));
+
         const auto r = getLocalBounds().toFloat();
         const float cx = r.getCentreX();
         const float cy = r.getCentreY();
@@ -142,10 +152,23 @@ public:
         fftBuf.assign (fftSize * 2, 0.0f);
 
         image = juce::Image (juce::Image::RGB, kNumBins, kHistory, true);
+        setOpaque (true);
         startTimerHz (8);
     }
 
     ~SpectrogramSphere() override { stopTimer(); }
+
+    void resized() override
+    {
+        // Rebuild the circular clip only when the size changes (not every frame).
+        const auto r = getLocalBounds().toFloat();
+        const float cx = r.getCentreX();
+        const float cy = r.getCentreY();
+        const float R  = juce::jmin (r.getWidth(), r.getHeight()) * 0.5f - 2.0f;
+        clipPath.clear();
+        clipPath.addEllipse (cx - R, cy - R, R * 2.0f, R * 2.0f);
+        clipR = R;
+    }
 
     void timerCallback() override
     {
@@ -170,15 +193,15 @@ public:
 
     void paint (juce::Graphics& g) override
     {
+        g.fillAll (spheresBg (*this));
+
         const auto r = getLocalBounds().toFloat();
         const float cx = r.getCentreX();
         const float cy = r.getCentreY();
-        const float R  = juce::jmin (r.getWidth(), r.getHeight()) * 0.5f - 2.0f;
+        const float R  = clipR > 0.0f ? clipR : juce::jmin (r.getWidth(), r.getHeight()) * 0.5f - 2.0f;
 
-        juce::Path clip;
-        clip.addEllipse (juce::Rectangle<float> (cx - R, cy - R, R * 2.0f, R * 2.0f));
         g.saveState();
-        g.reduceClipRegion (clip);
+        g.reduceClipRegion (clipPath);     // cached — not rebuilt per frame
         g.drawImage (image, juce::Rectangle<float> (cx - R, cy - R, R * 2.0f, R * 2.0f),
                      juce::RectanglePlacement::stretchToFit);
         g.restoreState();
@@ -201,4 +224,6 @@ private:
     std::array<float, kNumBins> slice {};
     juce::Image image;
     int frameCount = 0;
+    juce::Path clipPath;
+    float clipR = 0.0f;
 };
