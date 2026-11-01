@@ -82,6 +82,8 @@ namespace sympathy
         float along (float h) { return 0.5f * (1.0f - clampF (h, 0.0f, 0.96f)); }
     }
 
+    void prepareModelTables() { membraneModes(); }
+
     // -----------------------------------------------------------------------
     void ModalBank::reset()
     {

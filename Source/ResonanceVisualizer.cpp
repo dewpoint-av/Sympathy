@@ -11,7 +11,7 @@ ResonanceVisualizer::ResonanceVisualizer (SympathyAudioProcessor& p)
     : proc (p)
 {
     setOpaque (true);   // central hero over a flat background — paint our own bg
-    startTimerHz (12);
+    startTimerHz (30);   // update() advances the animation 1/30 s per tick
 }
 
 ResonanceVisualizer::~ResonanceVisualizer()

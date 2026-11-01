@@ -85,7 +85,7 @@ public:
         fftBuf.assign (fftSize * 2, 0.0f);
         bins.fill (0.0f);
         setOpaque (true);   // over a flat background: paint our own, skip parent recomposite
-        startTimerHz (10);
+        startTimerHz (15);
     }
 
     ~SpectrumSphere() override { stopTimer(); }
@@ -153,7 +153,7 @@ public:
 
         image = juce::Image (juce::Image::RGB, kNumBins, kHistory, true);
         setOpaque (true);
-        startTimerHz (8);
+        startTimerHz (12);
     }
 
     ~SpectrogramSphere() override { stopTimer(); }

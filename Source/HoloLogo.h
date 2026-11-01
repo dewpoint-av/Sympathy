@@ -31,14 +31,14 @@ public:
     HoloTitle (const juce::String& titleText, float height, bool useBold = true)
         : text (titleText), fontHeight (height), bold (useBold)
     {
-        startTimerHz (10);
+        startTimerHz (15);
     }
 
     ~HoloTitle() override { stopTimer(); }
 
     void timerCallback() override
     {
-        phase += 0.012f;
+        phase += 0.008f;
         if (phase > 1.0f)
             phase -= 1.0f;
         repaint();

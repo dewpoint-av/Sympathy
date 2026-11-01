@@ -102,6 +102,7 @@ namespace sympathy
     void ResonatorEngine::prepare (double sr, int maxBlockSize)
     {
         sampleRate = sr;
+        prepareModelTables();
         for (auto& t : tube)
             t.prepare (sr);
         for (auto& s : strings)

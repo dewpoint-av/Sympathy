@@ -110,6 +110,9 @@ namespace sympathy
         float z = 0.0f;
     };
 
+    // Builds the slow one-time tables. Call before audio runs, not from the audio thread.
+    void prepareModelTables();
+
     // Modal bank, stored so the per-sample loop can vectorise.
     class ModalBank
     {
